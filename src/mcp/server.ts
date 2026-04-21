@@ -12,6 +12,10 @@ import { TextSearch } from "../core/search-text.js";
 import { NoteCrud } from "../core/crud.js";
 import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
 import { Watcher } from "../core/watcher.js";
+import { applyPatch, type ChangeSet } from "../core/patch.js";
+import { buildSynthesizeChangeSet } from "../core/synthesize.js";
+import { lintVault } from "../core/lint.js";
+import { installDefaultSchema } from "../core/schema.js";
 import type { IndexedDocument, IndexState, VaultStats } from "../core/types.js";
 
 export interface ServerOptions {
@@ -197,6 +201,7 @@ export async function createServer(notesPath: string, options: ServerOptions = {
       graph.save(indexPath),
       newVector.save(indexPath),
       embedder.saveEmbeddings(cumulativeEmbeddings, indexPath),
+      indexer.saveDocsCache(indexPath, newDocs),
       writeFile(join(indexPath, "meta.json"), JSON.stringify({
         model: embedder.getModel(),
         dimensions: embedder.getDimensions(),
@@ -515,7 +520,155 @@ export async function createServer(notesPath: string, options: ServerOptions = {
         return textResponse(`Moved: ${from} → ${to}`);
       }
     );
+
+    // --- Patch / synthesis tools (Phase 2) ---
+    server.tool(
+      "apply_patch",
+      "Atomic multi-note patch with rollback — apply a ChangeSet of creates/updates/deletes/moves. If any op fails, earlier ops are reverted. In dry-run, nothing is written; result describes the proposed state + schema findings.",
+      {
+        creates: z
+          .array(
+            z.object({
+              path: z.string(),
+              content: z.string(),
+              frontmatter: z.record(z.unknown()).optional(),
+            })
+          )
+          .optional(),
+        updates: z
+          .array(
+            z.object({
+              path: z.string(),
+              content: z.string(),
+              mode: z.enum(["overwrite", "append", "prepend", "patch-by-heading"]),
+              heading: z.string().optional(),
+            })
+          )
+          .optional(),
+        deletes: z.array(z.object({ path: z.string() })).optional(),
+        moves: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
+        dry_run: z.boolean().optional().default(false),
+        validate: z.boolean().optional().default(true),
+        allow_lint_warnings: z.boolean().optional().default(true),
+      },
+      async (args) => {
+        const cs: ChangeSet = {
+          creates: args.creates,
+          updates: args.updates,
+          deletes: args.deletes,
+          moves: args.moves,
+        };
+        const result = await applyPatch(notesPath, cs, {
+          dryRun: args.dry_run,
+          validate: args.validate,
+          allowLintWarnings: args.allow_lint_warnings,
+        });
+        return textResponse(JSON.stringify(result, null, 2));
+      }
+    );
+
+    server.tool(
+      "synthesize_note",
+      "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact.",
+      {
+        topic: z.string(),
+        answer: z.string(),
+        suggested_path: z.string().describe("Target path relative to vault root, e.g. 'decisions/auth-migration.md'"),
+        type: z.string().optional().default("note").describe("One of the schema types: note, decision, gotcha, source"),
+        sources: z.array(z.string()).optional().describe("External URLs or paths — populate provenance.sources"),
+        derived_from: z.array(z.string()).optional().describe("Wikilinks to other vault notes — populate provenance.derived_from"),
+        related_notes: z.array(z.string()).optional().describe("Note names or paths to auto-link in the body + list under Related"),
+        status: z.string().optional().default("active"),
+        confidence: z.string().optional().default("medium"),
+        decision_maker: z.string().optional(),
+        decided_on: z.string().optional(),
+        severity: z.string().optional(),
+        dry_run: z.boolean().optional().default(false),
+      },
+      async (args) => {
+        const preview = buildSynthesizeChangeSet({
+          topic: args.topic,
+          answer: args.answer,
+          suggested_path: args.suggested_path,
+          type: args.type,
+          sources: args.sources,
+          derived_from: args.derived_from,
+          related_notes: args.related_notes,
+          status: args.status,
+          confidence: args.confidence,
+          decision_maker: args.decision_maker,
+          decided_on: args.decided_on,
+          severity: args.severity,
+        });
+        const result = await applyPatch(notesPath, preview.changeset, {
+          dryRun: args.dry_run,
+        });
+        return textResponse(
+          JSON.stringify(
+            {
+              preview: { path: preview.path, title: preview.title },
+              result,
+            },
+            null,
+            2
+          )
+        );
+      }
+    );
+
+    server.tool(
+      "install_schema",
+      "Bootstrap vault.schema.yml in the vault root with the default schema (note/decision/gotcha/source types + provenance fields). Skipped if present unless force=true.",
+      { force: z.boolean().optional().default(false) },
+      async ({ force }) => {
+        const r = await installDefaultSchema(notesPath, force);
+        return textResponse(
+          r.written ? `Installed default schema: ${r.path}` : `Schema already exists: ${r.path} (pass force=true to overwrite)`
+        );
+      }
+    );
   }
+
+  // --- Lint tools (Phase 2, always available — read-only) ---
+  server.tool(
+    "find_schema_violations",
+    "Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
+    { pathGlob: z.string().optional() },
+    async ({ pathGlob }) => {
+      const report = await lintVault(notesPath, { pathGlob });
+      return textResponse(JSON.stringify(report.byRule.schema_violations, null, 2));
+    }
+  );
+
+  server.tool(
+    "find_missing_provenance",
+    "Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
+    { pathGlob: z.string().optional() },
+    async ({ pathGlob }) => {
+      const report = await lintVault(notesPath, { pathGlob });
+      return textResponse(JSON.stringify(report.byRule.missing_provenance, null, 2));
+    }
+  );
+
+  server.tool(
+    "find_stale",
+    "Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
+    { pathGlob: z.string().optional() },
+    async ({ pathGlob }) => {
+      const report = await lintVault(notesPath, { pathGlob });
+      return textResponse(JSON.stringify(report.byRule.stale, null, 2));
+    }
+  );
+
+  server.tool(
+    "lint_vault",
+    "Run all lint rules at once — returns full LintReport with findings grouped by rule.",
+    { pathGlob: z.string().optional() },
+    async ({ pathGlob }) => {
+      const report = await lintVault(notesPath, { pathGlob });
+      return textResponse(JSON.stringify(report, null, 2));
+    }
+  );
 
   // --- Metadata tools ---
   server.tool(

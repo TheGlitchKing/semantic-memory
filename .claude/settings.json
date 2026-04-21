@@ -24,6 +24,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/vault-context.js"
+          }
+        ]
+      }
     ]
   }
 }

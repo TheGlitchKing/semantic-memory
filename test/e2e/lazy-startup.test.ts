@@ -19,7 +19,7 @@ describe("E2E: lazy index on connect", () => {
     }
   });
 
-  it("should connect and list all 21 tools before indexing completes", async () => {
+  it("should connect and list all 28 tools before indexing completes", async () => {
     const tempDir = await createTempVault();
     tempDirs.push(tempDir);
 
@@ -35,7 +35,7 @@ describe("E2E: lazy index on connect", () => {
 
     // Tools should be registered immediately (before full indexing)
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(21);
+    expect(tools.length).toBe(28);
 
     // Connection should be fast (model init may take time on first run,
     // but tool listing should not depend on index completion)

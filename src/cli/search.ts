@@ -30,7 +30,14 @@ export async function runSearch(opts: SearchCliOptions): Promise<SearchHit[]> {
   }
 
   const indexer = new Indexer(notesPath);
-  const documents = await indexer.indexAll();
+  const indexPath = join(notesPath, ".semantic-sidekick-index");
+
+  // Prefer the parsed-doc cache written by reindex — avoids re-parsing 500+ files
+  // on every hook call. Falls back to a full parse if the cache is missing.
+  let documents = existsSync(indexPath) ? await indexer.loadDocsCache(indexPath) : null;
+  if (!documents) {
+    documents = await indexer.indexAll();
+  }
   if (documents.length === 0) return [];
 
   const limit = opts.limit ?? 8;
@@ -72,7 +79,6 @@ export async function runSearch(opts: SearchCliOptions): Promise<SearchHit[]> {
   }
 
   // Hybrid path: load cached index, embed query, search + graph rerank.
-  const indexPath = join(notesPath, ".semantic-sidekick-index");
   if (!existsSync(indexPath)) {
     throw new Error(`index not built at ${indexPath} — run: semantic-sidekick --notes ${notesPath} --reindex`);
   }

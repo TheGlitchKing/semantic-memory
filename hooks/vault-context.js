@@ -142,6 +142,62 @@ function fingerprintPath(projectRoot) {
   return join(dir, ".sidekick-fingerprints.json");
 }
 
+function capturePendingPath(projectRoot) {
+  const dir = join(projectRoot, ".claude");
+  try { mkdirSync(dir, { recursive: true }); } catch {}
+  return join(dir, ".sidekick-capture-pending.json");
+}
+
+// Keywords that suggest the user is relaying new knowledge worth capturing as a note.
+const CAPTURE_CUES = [
+  /\bbecause\b/i,
+  /\bdecided\b|\bwe chose\b|\bthe decision\b/i,
+  /\bturned out to be\b|\bthe bug was\b|\bthe fix was\b/i,
+  /\bgotcha\b|\bworkaround\b|\bhack\b/i,
+  /\bnew convention\b|\bfrom now on\b|\bgoing forward\b/i,
+];
+
+function detectCaptureCue(prompt) {
+  for (const re of CAPTURE_CUES) {
+    if (re.test(prompt)) return re.source;
+  }
+  return null;
+}
+
+function addCapturePending(projectRoot, prompt, cueSource) {
+  try {
+    const p = capturePendingPath(projectRoot);
+    let state = { items: [] };
+    try { state = JSON.parse(readFileSync(p, "utf8")); } catch {}
+    if (!Array.isArray(state.items)) state.items = [];
+    state.items.push({
+      ts: new Date().toISOString(),
+      cue: cueSource,
+      excerpt: prompt.slice(0, 200),
+    });
+    writeFileSync(p, JSON.stringify(state));
+  } catch (e) {
+    debug(`capture pending write failed: ${e.message}`);
+  }
+}
+
+function resetCapturePending(projectRoot) {
+  try {
+    const p = capturePendingPath(projectRoot);
+    writeFileSync(p, JSON.stringify({ items: [] }));
+  } catch {}
+}
+
+function readCapturePending(projectRoot) {
+  try {
+    const p = capturePendingPath(projectRoot);
+    const state = JSON.parse(readFileSync(p, "utf8"));
+    return Array.isArray(state.items) ? state.items : [];
+  } catch {
+    return [];
+  }
+}
+
 function normalizeFingerprint(prompt) {
   return createHash("sha1")
     .update(prompt.toLowerCase().replace(/\s+/g, " ").trim())
@@ -166,6 +222,7 @@ function saveFingerprints(path, state) {
 }
 
 async function handleSessionStart(projectRoot, vaultPath, cliBin) {
+  resetCapturePending(projectRoot);
   const query = sessionSeedQuery(projectRoot);
   debug(`sessionstart seed query: "${query}"`);
   const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "6", query], 30_000);
@@ -175,6 +232,46 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
   }
   const block = formatContextBlock("sessionstart", query, hits);
   emit("SessionStart", block);
+}
+
+function emitStop(additionalContext, block) {
+  const out = { hookSpecificOutput: { hookEventName: "Stop" } };
+  if (additionalContext && additionalContext.trim()) {
+    out.hookSpecificOutput.additionalContext = additionalContext;
+  }
+  if (block) {
+    out.decision = "block";
+    out.reason = additionalContext || "capture pending";
+  }
+  process.stdout.write(JSON.stringify(out) + "\n");
+}
+
+async function handleStop(projectRoot) {
+  const pending = readCapturePending(projectRoot);
+  if (pending.length === 0) {
+    emitStop("", false);
+    return;
+  }
+  const stopHookActive = process.env.CLAUDE_STOP_HOOK_ACTIVE === "1";
+  // Don't re-block if the Stop hook is already blocking — Claude is mid-response to our nudge.
+  if (stopHookActive) {
+    resetCapturePending(projectRoot);
+    emitStop("", false);
+    return;
+  }
+  const lines = [
+    `<vault-capture-prompt count="${pending.length}">`,
+    `This session surfaced ${pending.length} capture-worthy moment${pending.length === 1 ? "" : "s"} (user prompts contained decision/gotcha/fix cues):`,
+    "",
+  ];
+  for (const item of pending.slice(0, 5)) {
+    lines.push(`- cue \`${item.cue}\`: "${item.excerpt.replace(/\n/g, " ")}"`);
+  }
+  lines.push("");
+  lines.push(`Before ending: for each still-unsynthesized item above, either call \`mcp__semantic-vault__synthesize_note\` to file it with provenance, or explicitly acknowledge that it was already captured / not worth capturing.`);
+  lines.push(`</vault-capture-prompt>`);
+  resetCapturePending(projectRoot);
+  emitStop(lines.join("\n"), true);
 }
 
 async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
@@ -192,9 +289,13 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
     emit("UserPromptSubmit", "");
     return;
   }
-  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "5", prompt], 30_000);
+  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", prompt], 30_000);
   state.recent = [fp, ...recent].slice(0, 10);
   saveFingerprints(fpPath, state);
+  const cue = detectCaptureCue(prompt);
+  if (cue) {
+    addCapturePending(projectRoot, prompt, cue);
+  }
   if (!hits || hits.length === 0) {
     emit("UserPromptSubmit", "");
     return;
@@ -226,6 +327,8 @@ async function main() {
   try {
     if (eventName === "UserPromptSubmit") {
       await handlePrompt(projectRoot, vaultPath, cliBin, input);
+    } else if (eventName === "Stop") {
+      await handleStop(projectRoot);
     } else {
       await handleSessionStart(projectRoot, vaultPath, cliBin);
     }

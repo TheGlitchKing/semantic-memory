@@ -319,6 +319,38 @@ program
   });
 
 program
+  .command("lint")
+  .description("Lint the vault against vault.schema.yml (schema violations + missing provenance + stale)")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--rule <name>", "Limit output to one rule: schema_violations | missing_provenance | stale")
+  .option("--json", "Emit raw JSON")
+  .option("--strict", "Exit non-zero on warnings too (default: exit non-zero only on errors)")
+  .action(async (opts) => {
+    const { lintVault, formatLintReport } = await import("../core/lint.js");
+    const report = await lintVault(resolve(opts.notes));
+    if (opts.json) {
+      const out = opts.rule ? report.byRule[opts.rule as keyof typeof report.byRule] : report;
+      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+    } else {
+      process.stdout.write(formatLintReport(report, { rule: opts.rule }) + "\n");
+    }
+    const bad = opts.strict ? report.counts.errors + report.counts.warnings : report.counts.errors;
+    process.exit(bad > 0 ? 1 : 0);
+  });
+
+program
+  .command("install-schema")
+  .description("Bootstrap vault.schema.yml in the vault root with the default schema")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--force", "Overwrite existing schema file")
+  .action(async (opts) => {
+    const { installDefaultSchema } = await import("../core/schema.js");
+    const r = await installDefaultSchema(resolve(opts.notes), opts.force);
+    console.log(r.written ? `Installed default schema: ${r.path}` : `Schema already exists: ${r.path} (use --force to overwrite)`);
+    process.exit(0);
+  });
+
+program
   .command("tools [name]")
   .description("List all MCP tools, or show details for a specific tool")
   .action((name?: string) => {
