@@ -1,5 +1,5 @@
 {
-  "description": "semantic-pages SessionStart hook — reconciles .mcp.json wiring and nudges/auto-updates per policy.",
+  "description": "semantic-sidekick SessionStart hook — reconciles .mcp.json wiring and nudges/auto-updates per policy.",
   "hooks": {
     "SessionStart": [
       {

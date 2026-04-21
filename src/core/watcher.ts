@@ -31,7 +31,7 @@ export class Watcher extends EventEmitter {
       followSymlinks: true,
       ignored: [
         "**/node_modules/**",
-        "**/.semantic-pages-index/**",
+        "**/.semantic-sidekick-index/**",
         "**/.git/**",
       ],
       ...(this.usePolling ? { usePolling: true, interval: 100 } : {}),

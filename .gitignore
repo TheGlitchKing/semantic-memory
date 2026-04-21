@@ -5,7 +5,7 @@ node_modules/
 dist/
 
 # Index (rebuilt on demand)
-.semantic-pages-index/
+.semantic-sidekick-index/
 
 # Environment
 .env
@@ -25,4 +25,4 @@ skills/*-workspace/
 
 # Local build / test artifacts
 *.tgz
-.claude/.semantic-pages-update-cache.json
+.claude/.semantic-sidekick-update-cache.json

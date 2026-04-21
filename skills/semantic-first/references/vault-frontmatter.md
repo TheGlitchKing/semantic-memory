@@ -1,6 +1,6 @@
 # Vault note frontmatter — field reference
 
-Every `.md` file written into `.claude/.vault/` must start with YAML frontmatter in this exact format. The schema is adapted from the 22-field docs frontmatter used by the semantic-pages ecosystem, with RAG-chunker fields removed (they're meaningless for scratchpad notes) and two research-specific fields added (`source`, `confidence`) because research artifacts need epistemic provenance.
+Every `.md` file written into `.claude/.vault/` must start with YAML frontmatter in this exact format. The schema is adapted from the 22-field docs frontmatter used by the semantic-sidekick ecosystem, with RAG-chunker fields removed (they're meaningless for scratchpad notes) and two research-specific fields added (`source`, `confidence`) because research artifacts need epistemic provenance.
 
 ## The template
 
@@ -46,7 +46,7 @@ owner: self                 # self | team | <username>
 | `tags` | Free-form keywords. | These are the primary filter dimension in `search_hybrid`. Err on the side of more tags. |
 | `status` | Is this note still valid? | `active` for current work. `superseded` when replaced by a newer investigation (fill `supersedes` on the new note). `draft` for in-progress. `archived` when deliberately retired. |
 | `last_updated` | ISO date, quoted. | Bump this on every edit, even small ones. |
-| `source` | Where the information came from. | `web-research` = Google/WebFetch. `docs-lookup` = pulled from semantic-pages. `conversation` = came from the user in chat. `experimentation` = ran something and observed results. `mixed` = combination. This is epistemic provenance and matters for re-reading later. |
+| `source` | Where the information came from. | `web-research` = Google/WebFetch. `docs-lookup` = pulled from semantic-sidekick. `conversation` = came from the user in chat. `experimentation` = ran something and observed results. `mixed` = combination. This is epistemic provenance and matters for re-reading later. |
 | `complexity` | How hard is this topic. | Affects reading-time expectations and whether future-you should budget extra time. |
 | `confidence` | How much to trust this note. | The single most valuable field for research notes. `low` confidence on a CRM recommendation after reading one blog post is useful information; pretending it's `high` is worse than not writing the note at all. |
 | `keywords` | Precise search terms. | More specific than `tags` — actual names, product names, technical terms that exact-match searches will hit. |
@@ -117,7 +117,7 @@ owner: self
 
 ## What we currently do
 
-<if Flow A surfaced this, summarize from semantic-pages findings and cite the docs>
+<if Flow A surfaced this, summarize from semantic-sidekick findings and cite the docs>
 
 ## Options evaluated
 

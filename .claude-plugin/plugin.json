@@ -1,5 +1,5 @@
 {
-  "name": "semantic-pages",
+  "name": "semantic-sidekick",
   "description": "Semantic search + knowledge graph MCP server for markdown vaults. Auto-wires a read/write vault at .claude/.vault, and a read-only docs index at .documentation when hit-em-with-the-docs is also installed.",
   "version": "0.10.0",
   "author": {
@@ -7,8 +7,8 @@
     "email": "theglitchking@users.noreply.github.com"
   },
   "license": "MIT",
-  "homepage": "https://github.com/TheGlitchKing/semantic-pages",
-  "repository": "https://github.com/TheGlitchKing/semantic-pages",
+  "homepage": "https://github.com/TheGlitchKing/semantic-sidekick",
+  "repository": "https://github.com/TheGlitchKing/semantic-sidekick",
   "keywords": [
     "mcp",
     "semantic-search",

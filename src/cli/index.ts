@@ -10,10 +10,10 @@ import { registerUpdateCommands } from "@theglitchking/claude-plugin-runtime";
 const require_ = createRequire(import.meta.url);
 const { version } = require_("../../package.json") as { version: string };
 
-const PKG_NAME = "@theglitchking/semantic-pages";
+const PKG_NAME = "@theglitchking/semantic-sidekick";
 
 function runRelink(cwd: string) {
-  const linker = join(cwd, "node_modules", "@theglitchking", "semantic-pages", "scripts", "link-skills.js");
+  const linker = join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "scripts", "link-skills.js");
   const script = existsSync(linker) ? linker : resolve(process.cwd(), "scripts", "link-skills.js");
   if (!existsSync(script)) {
     console.error("link-skills.js not found — is the package installed?");
@@ -27,7 +27,7 @@ function runRelink(cwd: string) {
 }
 
 function findLocalBin(cwd: string): string | null {
-  const p = join(cwd, "node_modules", "@theglitchking", "semantic-pages", "bin", "semantic-pages");
+  const p = join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick");
   return existsSync(p) ? p : null;
 }
 
@@ -64,7 +64,7 @@ function isLocalForm(entry: any): boolean {
   const args = Array.isArray(entry.args) ? entry.args : [];
   return (
     cmd === "node" &&
-    args.some((a: unknown) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-pages"))
+    args.some((a: unknown) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-sidekick"))
   );
 }
 
@@ -248,7 +248,7 @@ const TOOL_CATEGORIES: Record<string, string[]> = {
 function printToolList() {
   console.log("\nSemantic Pages — 21 MCP Tools\n");
   console.log("Usage: These tools are available via MCP when the server is running.");
-  console.log("       Run `semantic-pages tools <name>` for details on a specific tool.\n");
+  console.log("       Run `semantic-sidekick tools <name>` for details on a specific tool.\n");
 
   for (const [category, tools] of Object.entries(TOOL_CATEGORIES)) {
     console.log(`  ${category}:`);
@@ -259,14 +259,14 @@ function printToolList() {
     console.log();
   }
 
-  console.log("Run `semantic-pages tools <tool-name>` for arguments and examples.");
+  console.log("Run `semantic-sidekick tools <tool-name>` for arguments and examples.");
 }
 
 function printToolDetail(name: string) {
   const tool = TOOL_HELP[name];
   if (!tool) {
     console.error(`Unknown tool: ${name}`);
-    console.error(`Run \`semantic-pages tools\` to see all available tools.`);
+    console.error(`Run \`semantic-sidekick tools\` to see all available tools.`);
     process.exit(1);
   }
 
@@ -283,14 +283,14 @@ function printToolDetail(name: string) {
 }
 
 program
-  .name("semantic-pages")
+  .name("semantic-sidekick")
   .description(
     "Semantic search + knowledge graph MCP server for markdown files\n\n" +
-    "  Start MCP server:  semantic-pages --notes ./vault\n" +
-    "  Show vault stats:  semantic-pages --notes ./vault --stats\n" +
-    "  Force reindex:     semantic-pages --notes ./vault --reindex\n" +
-    "  List MCP tools:    semantic-pages tools\n" +
-    "  Tool details:      semantic-pages tools search_semantic"
+    "  Start MCP server:  semantic-sidekick --notes ./vault\n" +
+    "  Show vault stats:  semantic-sidekick --notes ./vault --stats\n" +
+    "  Force reindex:     semantic-sidekick --notes ./vault --reindex\n" +
+    "  List MCP tools:    semantic-sidekick tools\n" +
+    "  Tool details:      semantic-sidekick tools search_semantic"
   )
   .version(version);
 
@@ -371,8 +371,8 @@ program
 
 registerUpdateCommands(program, {
   packageName: PKG_NAME,
-  pluginName: "semantic-pages",
-  configFile: "semantic-pages.json",
+  pluginName: "semantic-sidekick",
+  configFile: "semantic-sidekick.json",
   onAfterUpdate: (cwd) => runRelink(cwd),
 });
 
@@ -397,8 +397,8 @@ program
     const bin = localBinArg(cwd);
     if (!bin) {
       console.error(
-        `no local install found at ./node_modules/@theglitchking/semantic-pages/bin/semantic-pages.\n` +
-          `run 'npm install --save @theglitchking/semantic-pages' first, then re-run this command.`,
+        `no local install found at ./node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick.\n` +
+          `run 'npm install --save @theglitchking/semantic-sidekick' first, then re-run this command.`,
       );
       process.exit(1);
     }
@@ -458,8 +458,8 @@ program
     const cwd = process.cwd();
     const bin = findLocalBin(cwd);
     if (!bin) {
-      console.error(`no local install at ./node_modules/@theglitchking/semantic-pages/bin/semantic-pages`);
-      console.error(`run 'npm install --save @theglitchking/semantic-pages' to install.`);
+      console.error(`no local install at ./node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick`);
+      console.error(`run 'npm install --save @theglitchking/semantic-sidekick' to install.`);
       process.exit(1);
     }
 
@@ -474,7 +474,7 @@ program
           `⚠️  .mcp.json uses the fragile npx-@latest form for: ${fragile.join(", ")}`,
         );
         console.warn(`   Rewrite to the stable form:`);
-        console.warn(`     npx --no @theglitchking/semantic-pages normalize-config`);
+        console.warn(`     npx --no @theglitchking/semantic-sidekick normalize-config`);
       }
     }
 

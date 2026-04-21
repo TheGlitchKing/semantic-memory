@@ -72,7 +72,7 @@ describe("E2E: ONNX runtime + new features", () => {
   });
 
   it("should write meta.json with model info", async () => {
-    const metaPath = join(tempDir, ".semantic-pages-index", "meta.json");
+    const metaPath = join(tempDir, ".semantic-sidekick-index", "meta.json");
     expect(existsSync(metaPath)).toBe(true);
 
     const meta = JSON.parse(await readFile(metaPath, "utf-8"));
@@ -85,7 +85,7 @@ describe("E2E: ONNX runtime + new features", () => {
   });
 
   it("should save incremental embeddings to disk", async () => {
-    const embeddingsPath = join(tempDir, ".semantic-pages-index", "embeddings.json");
+    const embeddingsPath = join(tempDir, ".semantic-sidekick-index", "embeddings.json");
     expect(existsSync(embeddingsPath)).toBe(true);
 
     const raw = await readFile(embeddingsPath, "utf-8");

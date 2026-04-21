@@ -1,14 +1,14 @@
-// Plugin-specific SessionStart reconciliation for semantic-pages.
+// Plugin-specific SessionStart reconciliation for semantic-sidekick.
 //
 // Responsibilities (all conservative — the user's config always wins):
 //   1. Ensure <project>/.claude/.vault exists.
 //   2. If .mcp.json is missing a "semantic-vault" entry AND the package is
 //      installed locally, add one in the node-against-node_modules form.
 //      Existing entries (any shape) are preserved — if you want to rewrite
-//      a stale entry, run `npx --no @theglitchking/semantic-pages
+//      a stale entry, run `npx --no @theglitchking/semantic-sidekick
 //      normalize-config`.
 //   3. If hit-em-with-the-docs is enabled AND ./.documentation exists,
-//      conditionally add a read-only "semantic-pages" entry pointed at
+//      conditionally add a read-only "semantic-sidekick" entry pointed at
 //      ./.documentation (same preserve-existing rule). Remove it ONLY if
 //      the existing entry matches a shape we recognize as ours.
 //
@@ -20,9 +20,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
-const PKG = "@theglitchking/semantic-pages";
+const PKG = "@theglitchking/semantic-sidekick";
 const VAULT_KEY = "semantic-vault";
-const DOCS_KEY = "semantic-pages";
+const DOCS_KEY = "semantic-sidekick";
 
 function readJson(path, fallback = null) {
   try {
@@ -43,7 +43,7 @@ function hewtdEnabled() {
 
 /** Absolute path to the locally-installed bin script, or null. */
 export function findLocalBin(projectRoot) {
-  const p = join(projectRoot, "node_modules", "@theglitchking", "semantic-pages", "bin", "semantic-pages");
+  const p = join(projectRoot, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick");
   return existsSync(p) ? p : null;
 }
 
@@ -80,7 +80,7 @@ function isOurEntry(entry, notesPath) {
   // Current node-against-node_modules form (0.10.0+).
   if (
     cmd === "node" &&
-    args.some((a) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-pages")) &&
+    args.some((a) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-sidekick")) &&
     argStr.includes(notesPath)
   ) {
     return true;
@@ -112,7 +112,7 @@ export function reconcile(projectRoot) {
       let raw = "";
       try { raw = readFileSync(mcpPath, "utf8"); } catch {}
       if (raw.trim()) {
-        process.stderr.write(`semantic-pages hook: could not parse ${mcpPath}; leaving untouched\n`);
+        process.stderr.write(`semantic-sidekick hook: could not parse ${mcpPath}; leaving untouched\n`);
         return;
       }
     } else if (parsed && typeof parsed === "object") {

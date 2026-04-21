@@ -1,18 +1,18 @@
 ---
 name: semantic-first
-description: Route documentation lookups, internal procedure questions, repo architectural/vocabulary/convention questions, and research tasks through the semantic-pages and semantic-vault MCP servers BEFORE falling back to any other search strategy. Use this skill whenever the user asks how something works in this repo, what the convention is, where a procedure or guide lives, what the project calls something, why code is structured a certain way, OR asks any research question — comparative evaluations ("is there a better X"), tool/library/API recommendations ("what's the best X for Y"), best-of surveys, or any "look into X" / "research X" / "investigate X" phrasing. Also use for all research note-taking — findings go into .claude/.vault as markdown with structured frontmatter, not scattered across the conversation. Triggers on prose/conceptual questions about a codebase or domain, not on pure code-symbol lookups (those are Grep jobs). Ships with the semantic-pages plugin and probes MCP availability at runtime — the docs-lookup flow degrades gracefully when hit-em-with-the-docs is not installed, and the vault-research flow degrades gracefully when semantic-pages itself isn't wired up.
+description: Route documentation lookups, internal procedure questions, repo architectural/vocabulary/convention questions, and research tasks through the semantic-sidekick and semantic-vault MCP servers BEFORE falling back to any other search strategy. Use this skill whenever the user asks how something works in this repo, what the convention is, where a procedure or guide lives, what the project calls something, why code is structured a certain way, OR asks any research question — comparative evaluations ("is there a better X"), tool/library/API recommendations ("what's the best X for Y"), best-of surveys, or any "look into X" / "research X" / "investigate X" phrasing. Also use for all research note-taking — findings go into .claude/.vault as markdown with structured frontmatter, not scattered across the conversation. Triggers on prose/conceptual questions about a codebase or domain, not on pure code-symbol lookups (those are Grep jobs). Ships with the semantic-sidekick plugin and probes MCP availability at runtime — the docs-lookup flow degrades gracefully when hit-em-with-the-docs is not installed, and the vault-research flow degrades gracefully when semantic-sidekick itself isn't wired up.
 ---
 
 # semantic-first
 
-Route documentation and research through the semantic-pages ecosystem before anything else.
+Route documentation and research through the semantic-sidekick ecosystem before anything else.
 
 ## Why this skill exists
 
-The semantic-pages plugin installs one or two MCP servers depending on what else is present:
+The semantic-sidekick plugin installs one or two MCP servers depending on what else is present:
 
-- **`semantic-vault`** — semantic + keyword search and full read/write over `.claude/.vault/`, a research scratchpad that persists across sessions. Available whenever the semantic-pages plugin is installed.
-- **`semantic-pages`** — the same engine pointed at a read-only docs index (by default `.documentation/`). Available only when the companion plugin `hit-em-with-the-docs` is also installed, since that's the plugin that owns the docs directory structure.
+- **`semantic-vault`** — semantic + keyword search and full read/write over `.claude/.vault/`, a research scratchpad that persists across sessions. Available whenever the semantic-sidekick plugin is installed.
+- **`semantic-sidekick`** — the same engine pointed at a read-only docs index (by default `.documentation/`). Available only when the companion plugin `hit-em-with-the-docs` is also installed, since that's the plugin that owns the docs directory structure.
 
 Without explicit routing, Claude's default reflex is to `Grep`/`Glob` the repo when the user asks a conceptual question, and to dump web-research findings straight into the chat where they're lost when the session ends. Both defaults waste the infrastructure the user set up. This skill corrects that.
 
@@ -22,8 +22,8 @@ This skill has two flows, and they depend on different MCP servers. Probe each o
 
 | Flow | What it does | Depends on | Tool namespace |
 |---|---|---|---|
-| **A. Docs lookup** | Find how something works in this repo | `hit-em-with-the-docs` being installed | `mcp__semantic-pages__*` |
-| **B. Research notes** | Capture findings to a persistent vault | `semantic-pages` being installed (which it is, since this skill ships with it — but the user can still have the MCP misconfigured) | `mcp__semantic-vault__*` |
+| **A. Docs lookup** | Find how something works in this repo | `hit-em-with-the-docs` being installed | `mcp__semantic-sidekick__*` |
+| **B. Research notes** | Capture findings to a persistent vault | `semantic-sidekick` being installed (which it is, since this skill ships with it — but the user can still have the MCP misconfigured) | `mcp__semantic-vault__*` |
 
 ## Flow A — documentation / procedure / repo-nuance lookups
 
@@ -35,23 +35,23 @@ This skill has two flows, and they depend on different MCP servers. Probe each o
 - "Why is this structured this way?"
 - "What does this project call X?"
 - "Is there a convention for Y?"
-- "Is there a `<thing>` in this repo that does X?" — note this is **prose about whether a capability exists**, which semantic-pages answers well from design docs, even though a naive read would send it to Grep.
+- "Is there a `<thing>` in this repo that does X?" — note this is **prose about whether a capability exists**, which semantic-sidekick answers well from design docs, even though a naive read would send it to Grep.
 
 **Does NOT trigger on code-symbol lookups** like "where is function `parseAuth` defined" or "show me the `User` class" — those are `Grep`/`Glob` jobs. The line is *prose vs. symbol*: if the answer is a line or two of prose that would typically live in a design doc, README, or procedure, this flow applies. If the answer is a specific file path and line number that only exists in source code, it doesn't.
 
-**When in doubt, try semantic-pages first anyway.** The cost of one extra `search_hybrid` call is tiny; the cost of grep-spelunking for something that's documented in plain English is several wasted minutes.
+**When in doubt, try semantic-sidekick first anyway.** The cost of one extra `search_hybrid` call is tiny; the cost of grep-spelunking for something that's documented in plain English is several wasted minutes.
 
 **Procedure:**
 
-1. **Probe availability** once per task. Call `mcp__semantic-pages__get_stats` with no arguments. If the tool is not in the session, or `get_stats` errors, or the stats show an empty/missing index, drop to [Fallback: docs lookup](#fallback-docs-lookup) below. Otherwise the index is live and you can search it.
-2. **Search with hybrid retrieval.** Use `mcp__semantic-pages__search_hybrid` with the user's question (or a condensed form of it) as the query. Hybrid search combines semantic embeddings with keyword matching and outperforms either individually for most real questions. Keep `top_k` modest (5–10); you can always widen if the first pass is thin.
-3. **Read the top hits in full.** For each promising result, call `mcp__semantic-pages__read_note`. Do not answer from search snippets alone — snippets lose surrounding context and produce confident-sounding wrong answers. Reading 2–3 full notes is almost always cheaper than correcting a wrong answer later.
-4. **Traverse the graph when the question is multi-part.** If a note references `[[wikilinks]]` or has `dependencies:` / `related:` frontmatter, use `mcp__semantic-pages__forwardlinks` / `backlinks` to follow the chain. This is especially valuable for questions like "how does X work end-to-end" or "what's the deploy process for each environment" — where the full answer is spread across linked notes.
+1. **Probe availability** once per task. Call `mcp__semantic-sidekick__get_stats` with no arguments. If the tool is not in the session, or `get_stats` errors, or the stats show an empty/missing index, drop to [Fallback: docs lookup](#fallback-docs-lookup) below. Otherwise the index is live and you can search it.
+2. **Search with hybrid retrieval.** Use `mcp__semantic-sidekick__search_hybrid` with the user's question (or a condensed form of it) as the query. Hybrid search combines semantic embeddings with keyword matching and outperforms either individually for most real questions. Keep `top_k` modest (5–10); you can always widen if the first pass is thin.
+3. **Read the top hits in full.** For each promising result, call `mcp__semantic-sidekick__read_note`. Do not answer from search snippets alone — snippets lose surrounding context and produce confident-sounding wrong answers. Reading 2–3 full notes is almost always cheaper than correcting a wrong answer later.
+4. **Traverse the graph when the question is multi-part.** If a note references `[[wikilinks]]` or has `dependencies:` / `related:` frontmatter, use `mcp__semantic-sidekick__forwardlinks` / `backlinks` to follow the chain. This is especially valuable for questions like "how does X work end-to-end" or "what's the deploy process for each environment" — where the full answer is spread across linked notes.
 5. **Answer from what you read, with filename citations.** Tell the user which notes you pulled the answer from so they can jump to the source. If the answer genuinely isn't in the index, say so explicitly — don't backfill with guesses or pivot silently to web search.
 
 ### Fallback: docs lookup
 
-If step 1 indicates the `semantic-pages` MCP is unavailable (the `hit-em-with-the-docs` plugin isn't installed, the `.mcp.json` isn't wired up, or the index is empty), degrade:
+If step 1 indicates the `semantic-sidekick` MCP is unavailable (the `hit-em-with-the-docs` plugin isn't installed, the `.mcp.json` isn't wired up, or the index is empty), degrade:
 
 - Tell the user, in one sentence, that the semantic docs index isn't available and you're falling back to direct file search. Visibility matters — it lets them fix the config and get the fast path back.
 - Use `Glob` to enumerate `*.md` files in likely locations: `docs/`, `documentation/`, `.documentation/`, `README.md`, `CONTRIBUTING.md`, `.claude/`, and the repo root.
@@ -91,12 +91,12 @@ If neither the MCP nor a filesystem `.claude/.vault/` directory is available *an
 
 ## The vault frontmatter is non-negotiable
 
-Every `.md` file created in `.claude/.vault/` must start with YAML frontmatter. See `references/vault-frontmatter.md` for the full field reference and rationale. The short version is that the format is adapted from the 22-field docs frontmatter used elsewhere in the semantic-pages ecosystem, with the RAG-chunker fields dropped and two research-specific fields (`source`, `confidence`) added. A note without frontmatter won't index properly and becomes invisible to future searches — which defeats the whole point of writing it.
+Every `.md` file created in `.claude/.vault/` must start with YAML frontmatter. See `references/vault-frontmatter.md` for the full field reference and rationale. The short version is that the format is adapted from the 22-field docs frontmatter used elsewhere in the semantic-sidekick ecosystem, with the RAG-chunker fields dropped and two research-specific fields (`source`, `confidence`) added. A note without frontmatter won't index properly and becomes invisible to future searches — which defeats the whole point of writing it.
 
 ## Interaction with other Claude systems
 
 - **The memory system** (`~/.claude/projects/**/memory/`) is for durable facts about the user and the project (who they are, what they prefer, what constraints are in play). It is NOT for research artifacts. Research goes in the vault; facts go in memory. When in doubt: *is this a body of findings on a specific topic?* → vault. *Is this a fact that would be useful to a completely different task?* → memory.
-- **`Grep`/`Glob`** are for code-symbol lookups and as a Flow A fallback. Not the default for conceptual prose questions when semantic-pages is available.
+- **`Grep`/`Glob`** are for code-symbol lookups and as a Flow A fallback. Not the default for conceptual prose questions when semantic-sidekick is available.
 - **`WebSearch`/`WebFetch`** are research *inputs* — their outputs should flow into vault notes, not into the conversation only. The chat response summarizes; the note preserves.
 
 ## What success looks like
@@ -109,7 +109,7 @@ Every `.md` file created in `.claude/.vault/` must start with YAML frontmatter. 
 
 ## What failure looks like
 
-- Grep'ing the repo for a conceptual question when `mcp__semantic-pages__search_hybrid` is sitting right there.
+- Grep'ing the repo for a conceptual question when `mcp__semantic-sidekick__search_hybrid` is sitting right there.
 - Writing research findings into the chat response and leaving no artifact on disk.
 - Writing vault notes without frontmatter, or with ad-hoc frontmatter that won't index.
 - Silently no-op'ing when an MCP server is missing instead of telling the user and falling back.
