@@ -1,7 +1,7 @@
 {
-  "name": "@theglitchking/semantic-pages",
-  "version": "0.10.0",
-  "description": "Semantic search + knowledge graph MCP server for markdown vaults. Claude Code plugin with auto-wiring for .claude/.vault and read-only .documentation companion when hit-em-with-the-docs is installed.",
+  "name": "@theglitchking/semantic-sidekick",
+  "version": "0.1.0",
+  "description": "Activation, mode-routing, and capture layer on top of semantic-pages. Turns a retrievable markdown vault into a present one — auto-fires during work, matches the situation (research vs code vs outage), and forces capture at transitions.",
   "type": "module",
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -10,7 +10,7 @@
     "./mcp": "./dist/mcp/server.js"
   },
   "bin": {
-    "semantic-pages": "bin/semantic-pages"
+    "semantic-sidekick": "bin/semantic-sidekick"
   },
   "files": [
     "bin",

@@ -140,7 +140,7 @@ describe("E2E: lazy index on connect", () => {
     tempDirs.push(tempDir);
 
     // Remove any cached index to force a fresh build
-    await rm(join(tempDir, ".semantic-pages-index"), { recursive: true, force: true });
+    await rm(join(tempDir, ".semantic-sidekick-index"), { recursive: true, force: true });
 
     const transport = new StdioClientTransport({
       command: "node",

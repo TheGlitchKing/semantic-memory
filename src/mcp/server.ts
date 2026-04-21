@@ -26,7 +26,7 @@ export interface ServerOptions {
 }
 
 export async function createServer(notesPath: string, options: ServerOptions = {}) {
-  const indexPath = join(notesPath, ".semantic-pages-index");
+  const indexPath = join(notesPath, ".semantic-sidekick-index");
   await mkdir(indexPath, { recursive: true });
 
   // Core services
@@ -281,7 +281,7 @@ export async function createServer(notesPath: string, options: ServerOptions = {
 
   // MCP Server
   const server = new McpServer({
-    name: "semantic-pages",
+    name: "semantic-sidekick",
     version: "0.2.0",
   });
 

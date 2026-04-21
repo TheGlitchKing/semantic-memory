@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 // MiniLM-L6-v2 is the default: ~3 min to index 2,853 chunks on CPU vs ~16 min for nomic.
 // nomic-embed-text-v1.5 gives higher quality embeddings but is much slower on CPU.
 const DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
-const CACHE_DIR = join(homedir(), ".semantic-pages", "models");
+const CACHE_DIR = join(homedir(), ".semantic-sidekick", "models");
 // Default to 1 worker (serial). Worker threads only help on memory-rich machines
 // (each worker loads its own ONNX session). On typical dev machines
 // with <4 GB free RAM, parallel workers cause swap thrashing and are slower.
@@ -67,7 +67,7 @@ async function resolveOnnxRuntime(): Promise<{ ort: OrtModule; label: RuntimeLab
 // writes — the worst case is one wasted download (rename is last-writer-wins
 // but each rename installs a complete, valid file). Without this, multiple
 // processes calling Embedder.init() against the same cache (e.g. parallel
-// vitest workers, or multiple semantic-pages servers on a fresh install) race
+// vitest workers, or multiple semantic-sidekick servers on a fresh install) race
 // on a single shared writeStream and produce a corrupt ONNX file that fails
 // Protobuf parsing on load.
 async function downloadFile(url: string, destPath: string): Promise<void> {
