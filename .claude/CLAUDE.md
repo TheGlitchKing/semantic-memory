@@ -50,6 +50,21 @@ Self-managing documentation system with pattern discovery and hierarchical doc s
 - `/discover standards` — extract implicit coding standards
 - CLI also available: `npx hewtd`
 
+## Vault-first rule (Phase 1 activation)
+
+For any project-scoped prose question — "how does X work here", "what's our process for Y", "where does Z live", "why is this structured this way", operational runbook questions, known-issue/gotcha lookups — consult the vault **before** answering.
+
+1. **Check injected context first.** If you see a `<vault-context>` block in the conversation (from `SessionStart` or `UserPromptSubmit` hooks), read the listed note paths before searching again.
+2. **If context is thin, search the vault.** Call `mcp__semantic-vault__search_hybrid` with the user's question. Read 2–3 promising hits via `read_note`.
+3. **Cite or deflect.** End every project-question answer one of two ways:
+   - **Cite**: name the note paths the answer came from (`per runbooks/deploy.md and decisions/2026-03-auth.md`).
+   - **Deflect**: say "not in vault" and name the nearest misses. Do not silently fall back to training data or web search.
+4. **Offer to capture** when you answer from outside the vault (user told you, web search, prior knowledge): one-line offer to file it as a note. Don't force it.
+
+Boundary: code-symbol lookups (`where is function X`) go to `Grep`. Active incidents (user mentions "down / broken / rollback / customers / oncall" or pastes alert logs) switch to `outage-silence` — stop auto-firing vault search.
+
+See `.claude/skills/vault-first/SKILL.md` for the full mode contract.
+
 ## Notes
 <!-- Anything else Claude should know about this workspace -->
 

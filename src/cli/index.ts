@@ -295,6 +295,30 @@ program
   .version(version);
 
 program
+  .command("search <query>")
+  .description("Run a vault search and print top hits as JSON (used by activation hooks)")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--limit <n>", "Max results", (v) => parseInt(v, 10), 8)
+  .option("--text-only", "Skip embedder — keyword-only search (fast path, no model init)")
+  .option("--json", "Emit raw JSON (default)", true)
+  .action(async (query: string, opts) => {
+    const { runSearch } = await import("./search.js");
+    try {
+      const hits = await runSearch({
+        notes: opts.notes,
+        query,
+        limit: opts.limit,
+        textOnly: opts.textOnly,
+      });
+      process.stdout.write(JSON.stringify(hits, null, 2) + "\n");
+      process.exit(0);
+    } catch (err: any) {
+      console.error(`search failed: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
   .command("tools [name]")
   .description("List all MCP tools, or show details for a specific tool")
   .action((name?: string) => {
