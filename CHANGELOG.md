@@ -2,6 +2,23 @@
 
 All notable changes to semantic-sidekick will be documented here.
 
+## [0.2.3] - 2026-04-22
+
+### Fixed
+- **`vault-first` skill + CLAUDE.md rule over-triggered "not in vault"
+  deflection.** The rule was written as "cite or deflect on every answer";
+  in practice the UserPromptSubmit hook injects `<vault-context>` on *every*
+  prompt (including meta-questions, debugging, yes/no, directives, and
+  conversational turns), so Claude was opening every response with "not in
+  vault" regardless of whether the prompt was actually a vault-eligible
+  project lookup.
+
+  Fix: the cite-or-deflect rule now explicitly applies only when the *user's
+  question shape* is a project/operational lookup. Meta/tool/debug/status/
+  directive prompts → silently ignore the injected block. The filter is the
+  user's intent, not the hook's output. Updated in both `skills/vault-first/SKILL.md`
+  and the CLAUDE.md rule block.
+
 ## [0.2.2] - 2026-04-22
 
 ### Fixed

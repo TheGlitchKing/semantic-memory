@@ -56,10 +56,12 @@ For any project-scoped prose question — "how does X work here", "what's our pr
 
 1. **Check injected context first.** If you see a `<vault-context>` block in the conversation (from `SessionStart` or `UserPromptSubmit` hooks), read the listed note paths before searching again.
 2. **If context is thin, search the vault.** Call `mcp__semantic-vault__search_hybrid` with the user's question. Read 2–3 promising hits via `read_note`.
-3. **Cite or deflect.** End every project-question answer one of two ways:
+3. **Cite or deflect — only when the prompt is actually a vault lookup.** End project-question answers one of two ways:
    - **Cite**: name the note paths the answer came from (`per runbooks/deploy.md and decisions/2026-03-auth.md`).
    - **Deflect**: say "not in vault" and name the nearest misses. Do not silently fall back to training data or web search.
 4. **Offer to capture** when you answer from outside the vault (user told you, web search, prior knowledge): one-line offer to file it as a note. Don't force it.
+
+**Do NOT narrate "not in vault" on non-lookup prompts.** The UserPromptSubmit hook injects `<vault-context>` on every prompt unconditionally — but this rule only applies when the user's question shape is a vault-eligible project lookup. For meta-questions about the tool ("is X the same as Y?"), debugging ("I see this error"), status checks ("did that work?"), directives ("proceed", "merge"), or conversational turns ("thanks"), silently ignore the injected block and answer directly. Opening with "not in vault" in those cases is noise, not honest deflection.
 
 Boundary: code-symbol lookups (`where is function X`) go to `Grep`. Active incidents (user mentions "down / broken / rollback / customers / oncall" or pastes alert logs) switch to `outage-silence` — stop auto-firing vault search.
 
