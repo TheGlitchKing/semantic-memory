@@ -2,6 +2,26 @@
 
 All notable changes to semantic-sidekick will be documented here.
 
+## [0.2.1] - 2026-04-22
+
+### Fixed (critical)
+- **SessionStart hook no longer crashes with `ERR_MODULE_NOT_FOUND` when
+  installed via `/plugin install`.** Claude Code's plugin extractor unpacks
+  the npm tarball but does not run `npm install` — so `hooks/session-start.js`'s
+  static `import { runSessionStart } from "@theglitchking/claude-plugin-runtime"`
+  failed at load time, producing the reported errors:
+
+      SessionStart:resume hook error
+      Failed with non-blocking status code: node:internal/modules/cjs/loader:1386
+      Failed with non-blocking status code: node:internal/modules/package_json_reader:314
+
+  Fix: rewrite `session-start.js` so the critical path (reconcile .mcp.json,
+  ensure .claude/.vault) uses zero external deps — `reconcile.js` is pure
+  node built-ins. The `claude-plugin-runtime` integration (auto-update policy)
+  is now a best-effort dynamic import — skipped silently when not resolvable.
+  The hook always emits a valid SessionStart response and never blocks the
+  session, even if every optional component is missing.
+
 ## [0.2.0] - 2026-04-22
 
 ### Phase 1 — Activation layer
