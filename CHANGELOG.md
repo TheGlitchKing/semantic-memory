@@ -2,6 +2,19 @@
 
 All notable changes to semantic-sidekick will be documented here.
 
+## [0.2.2] - 2026-04-22
+
+### Fixed
+- **Docs MCP (`semantic-sidekick`) was silently removed by reconcile on every
+  SessionStart when `hit-em-with-the-docs` was enabled per-project but not
+  globally.** `reconcile.js:hewtdEnabled()` only checked `~/.claude/settings.json`;
+  per-project enablement (project `.claude/settings.json` or `.claude/settings.local.json`)
+  was ignored. Since isOurEntry recognized the docs entry as ours, the reconcile
+  removal path deleted it on every boot.
+- Fix: `hewtdEnabled(projectRoot)` now checks all three scopes (user, project,
+  project-local) and returns true if hewtd is enabled in any of them. The docs
+  MCP now persists correctly for project-scope installs.
+
 ## [0.2.1] - 2026-04-22
 
 ### Fixed (critical)
