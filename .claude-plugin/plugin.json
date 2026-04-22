@@ -1,7 +1,7 @@
 {
   "name": "semantic-sidekick",
   "description": "Activation + routing + capture layer on top of a markdown vault MCP. Turns a retrievable vault into a present one: hooks search on every prompt, skills route between vault-first / research / outage-silence modes, apply_patch + synthesize_note + ingest_source turn query-answers into durable artifacts with provenance.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "TheGlitchKing",
     "email": "theglitchking@users.noreply.github.com"
