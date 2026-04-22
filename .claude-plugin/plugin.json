@@ -1,7 +1,7 @@
 {
   "name": "semantic-sidekick",
-  "description": "Semantic search + knowledge graph MCP server for markdown vaults. Auto-wires a read/write vault at .claude/.vault, and a read-only docs index at .documentation when hit-em-with-the-docs is also installed.",
-  "version": "0.10.0",
+  "description": "Activation + routing + capture layer on top of a markdown vault MCP. Turns a retrievable vault into a present one: hooks search on every prompt, skills route between vault-first / research / outage-silence modes, apply_patch + synthesize_note + ingest_source turn query-answers into durable artifacts with provenance.",
+  "version": "0.1.0",
   "author": {
     "name": "TheGlitchKing",
     "email": "theglitchking@users.noreply.github.com"
@@ -14,9 +14,16 @@
     "semantic-search",
     "knowledge-graph",
     "markdown",
-    "vector-search",
-    "embeddings",
-    "wikilinks",
-    "vault"
+    "vault",
+    "activation",
+    "routing",
+    "hooks",
+    "skills",
+    "vault-first",
+    "research-mode",
+    "outage-silence",
+    "provenance",
+    "synthesize-note",
+    "ingest-source"
   ]
 }

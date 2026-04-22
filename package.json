@@ -19,7 +19,11 @@
     "hooks",
     "commands",
     "scripts/link-skills.js",
+    "scripts/pre-commit-lint.sh",
     "skills/semantic-first",
+    "skills/vault-first",
+    "skills/research-mode",
+    "skills/outage-silence",
     "README.md",
     "LICENSE"
   ],
