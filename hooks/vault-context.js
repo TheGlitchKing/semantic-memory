@@ -262,10 +262,11 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
 }
 
 function emitStop(additionalContext, block) {
-  const out = { hookSpecificOutput: { hookEventName: "Stop" } };
-  if (additionalContext && additionalContext.trim()) {
-    out.hookSpecificOutput.additionalContext = additionalContext;
-  }
+  // Claude Code's Stop hook schema does NOT accept hookSpecificOutput — unlike
+  // SessionStart / UserPromptSubmit / PostToolUse. Stop-mode fields are all
+  // top-level: decision, reason, continue, stopReason, suppressOutput.
+  // (Emitting hookSpecificOutput.hookEventName="Stop" fails schema validation.)
+  const out = {};
   if (block) {
     out.decision = "block";
     out.reason = additionalContext || "capture pending";

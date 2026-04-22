@@ -70,9 +70,9 @@ describe("Phase 4 mode hook behavior", () => {
       { SIDEKICK_VAULT_PATH: vaultDir }
     );
     expect(out.decision).toBe("block");
-    const ctx = out?.hookSpecificOutput?.additionalContext ?? "";
-    expect(ctx).toContain("postmortem");
-    expect(ctx).toContain("outage-silence");
+    const reason = out?.reason ?? "";
+    expect(reason).toContain("postmortem");
+    expect(reason).toContain("outage-silence");
   });
 
   it("Stop hook in research mode emits synthesis prompt when capture pending", async () => {
@@ -95,9 +95,9 @@ describe("Phase 4 mode hook behavior", () => {
       { SIDEKICK_VAULT_PATH: vaultDir }
     );
     expect(out.decision).toBe("block");
-    const ctx = out?.hookSpecificOutput?.additionalContext ?? "";
-    expect(ctx).toContain("research");
-    expect(ctx).toContain("synthesize_note");
+    const reason = out?.reason ?? "";
+    expect(reason).toContain("research");
+    expect(reason).toContain("synthesize_note");
   });
 
   it("vault-first Stop hook behaves as Phase 2 (generic capture prompt)", async () => {
@@ -113,7 +113,7 @@ describe("Phase 4 mode hook behavior", () => {
       { SIDEKICK_VAULT_PATH: vaultDir }
     );
     expect(out.decision).toBe("block");
-    const ctx = out?.hookSpecificOutput?.additionalContext ?? "";
-    expect(ctx).toContain("vault-capture-prompt");
+    const reason = out?.reason ?? "";
+    expect(reason).toContain("vault-capture-prompt");
   });
 });
