@@ -6,6 +6,14 @@ export { TextSearch } from "./search-text.js";
 export { NoteCrud } from "./crud.js";
 export { FrontmatterManager, TagManager } from "./frontmatter.js";
 export { Watcher } from "./watcher.js";
+export { applyPatch } from "./patch.js";
+export type { ChangeSet, ApplyPatchOptions, ApplyPatchResult } from "./patch.js";
+export { buildSynthesizeChangeSet } from "./synthesize.js";
+export type { SynthesizeNoteInput } from "./synthesize.js";
+export { lintVault, formatLintReport } from "./lint.js";
+export type { LintReport } from "./lint.js";
+export { loadSchema, validateNote, installDefaultSchema } from "./schema.js";
+export type { VaultSchema, LintFinding, Severity } from "./schema.js";
 
 export type {
   IndexedDocument,

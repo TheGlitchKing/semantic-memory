@@ -323,19 +323,22 @@ program
   .description("Lint the vault against vault.schema.yml (schema violations + missing provenance + stale)")
   .requiredOption("--notes <path>", "Path to markdown notes directory")
   .option("--rule <name>", "Limit output to one rule: schema_violations | missing_provenance | stale")
-  .option("--json", "Emit raw JSON")
+  .option("--json", "Emit JSON instead of the human-readable report")
   .option("--strict", "Exit non-zero on warnings too (default: exit non-zero only on errors)")
   .action(async (opts) => {
     const { lintVault, formatLintReport } = await import("../core/lint.js");
     const report = await lintVault(resolve(opts.notes));
+    // Use console.log + process.exitCode (not process.exit) so Node flushes
+    // stdout fully before the process ends. Early process.exit with a large
+    // buffered JSON payload can truncate output.
     if (opts.json) {
       const out = opts.rule ? report.byRule[opts.rule as keyof typeof report.byRule] : report;
-      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+      console.log(JSON.stringify(out, null, 2));
     } else {
-      process.stdout.write(formatLintReport(report, { rule: opts.rule }) + "\n");
+      console.log(formatLintReport(report, { rule: opts.rule }));
     }
     const bad = opts.strict ? report.counts.errors + report.counts.warnings : report.counts.errors;
-    process.exit(bad > 0 ? 1 : 0);
+    process.exitCode = bad > 0 ? 1 : 0;
   });
 
 program
