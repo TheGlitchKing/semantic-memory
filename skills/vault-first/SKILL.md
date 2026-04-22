@@ -34,10 +34,28 @@ If the injected context is enough to answer, answer from it and cite the note pa
 
 Call `mcp__semantic-vault__search_hybrid` (or `search_text` for exact-match needs) with the user's question as the query. Read 2–3 promising hits in full via `mcp__semantic-vault__read_note` before answering. Do not answer from snippets alone — snippets lose context and produce confidently wrong answers.
 
-### 3. Cite, or say "not in vault"
+### 3. Cite, or say "not in vault" — **only when the prompt is actually a vault lookup**
 
-Every answer in vault-first mode ends in one of two ways:
+Read this carefully: the cite-or-deflect rule applies **only when the user asked a project-scoped prose question that a filed note could plausibly answer**. That's the narrow case. For everything else, **ignore the `<vault-context>` block silently** — the hook injects it unconditionally, but the rule does not.
 
+**DO cite-or-deflect when:**
+- User asks "how does X work here?", "what's our process for Y?", "where does Z live?", "why is this structured this way?"
+- User asks an operational runbook / troubleshooting / gotcha question
+- User asks a decision-history question ("why did we choose X?")
+
+**DO NOT narrate "not in vault" when:**
+- The user's prompt is a **meta-question about the tool** ("is semantic-vault the same as semantic-sidekick?", "should I install this somewhere?", "what command do I run?")
+- The user is **debugging the plugin itself** ("/mcp shows only one server", "getting ERR_MODULE_NOT_FOUND")
+- The user asks a **yes/no or status check** ("did that work?", "are you stuck?", "should I restart?")
+- The user is **giving a directive** ("proceed", "fix it", "merge the PR")
+- The user is asking about **Claude Code** itself, or about your capabilities generally
+- The prompt is **conversational/social** ("thanks", "ok", "got it")
+
+In all the "DO NOT" cases: the `<vault-context>` block is injected automatically by the UserPromptSubmit hook but is not relevant. Pretend it isn't there. Answer the user's actual question directly. Do not open your response with any variant of "not in vault" — that is noise, not honest deflection.
+
+The cue for applying cite-or-deflect is the *shape of the user's question*, not the presence of a `<vault-context>` block.
+
+**When you DO apply cite-or-deflect:**
 - **Cite:** "…per `runbooks/deploy-staging.md` and `decisions/2026-03-auth-migration.md`." List the paths so the user can open them.
 - **Deflect:** "This isn't in the vault. Nearest matches were `X.md` and `Y.md` but neither covers Z. Want me to [search the web / ask more / file a stub note]?"
 
@@ -52,7 +70,9 @@ If you had to answer from outside the vault (web search, training knowledge, the
 - **Code-symbol lookups.** "Where is `parseAuth` defined?" → `Grep`. "Show me the `User` model." → `Glob`. If the answer is a file + line, the vault is the wrong tool.
 - **Pure external research.** "What's the best vector DB for <100k docs?" → `semantic-first`'s Flow B (research vault + web).
 - **Active incidents.** If the user mentions "down", "broken", "customers", "rollback", "oncall", an alert timestamp, or pasted error logs, `outage-silence` takes over. Stop auto-firing search. Wait for explicit `/vault` request.
-- **Meta-questions about Claude or the CLI.** "How do I use `/clear`?" → built-in help, not vault.
+- **Meta-questions about Claude, Claude Code, or this plugin itself.** "How do I use `/clear`?", "is semantic-vault the same as semantic-sidekick?", "should I reinstall?" → these aren't vault lookups. Answer directly, do not narrate "not in vault".
+- **Tool/debug/status prompts.** "getting this error…", "did that work?", "are you stuck?", "what command do I run?" → operational meta. Not vault lookups.
+- **Directives and conversational turns.** "proceed", "merge please", "thanks", "ok go" → just act/acknowledge. Do not deflect.
 
 ## Interaction with hooks
 
@@ -77,3 +97,4 @@ If you see `<vault-context source="sessionstart">` or `<vault-context source="pr
 - Saying "the docs cover this" without naming the file.
 - Silently falling back to `Grep` when the project question has an obvious prose answer in the vault.
 - Firing vault-first during an outage and drowning the user in search context when they need terse operational help.
+- **Opening responses with "not in vault" on non-lookup prompts** (meta-questions, debugging, directives, status checks). The `<vault-context>` block fires on every prompt because the hook is unconditional; the skill is the filter. If the prompt isn't a lookup, silently ignore the injected context. "Not in vault" should only appear when the user *asked* something and the vault *didn't answer it*.
