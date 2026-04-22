@@ -96,6 +96,35 @@ function runSearchCli(cliBin, args, timeoutMs) {
   }
 }
 
+// Fire-and-forget structured log event via CLI. Hooks don't import core modules;
+// the CLI is the shared log-writing surface so both MCP and hook code land in
+// the same log.md with the same format.
+function logEventViaCli(cliBin, vaultPath, kind, summary, payload) {
+  try {
+    const args = [cliBin, "log-event", "--notes", vaultPath, "--kind", kind, "--summary", summary];
+    if (payload) args.push("--payload", JSON.stringify(payload));
+    const r = spawnSync("node", args, { stdio: ["ignore", "ignore", "pipe"], timeout: 10_000 });
+    if (r.status !== 0) debug(`log-event exit ${r.status}: ${r.stderr?.toString().trim()}`);
+  } catch (e) {
+    debug(`log-event spawn failed: ${e.message}`);
+  }
+}
+
+function queryRecentLogViaCli(cliBin, vaultPath, sinceIso, limit = 20) {
+  try {
+    const args = [cliBin, "log-query", "--notes", vaultPath, "--after", sinceIso, "--limit", String(limit)];
+    const r = spawnSync("node", args, { stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 });
+    if (r.status !== 0) {
+      debug(`log-query exit ${r.status}: ${r.stderr?.toString().trim()}`);
+      return [];
+    }
+    return JSON.parse(r.stdout.toString());
+  } catch (e) {
+    debug(`log-query failed: ${e.message}`);
+    return [];
+  }
+}
+
 function formatContextBlock(source, query, hits) {
   if (!hits || hits.length === 0) return "";
   const lines = [];
@@ -173,6 +202,12 @@ function writeMode(projectRoot, mode) {
   }
 }
 
+function logMaybeModeChange(cliBin, vaultPath, from, to) {
+  if (!cliBin || !vaultPath) return;
+  if (from === to) return;
+  logEventViaCli(cliBin, vaultPath, "mode_change", `${from} → ${to}`, { from, to });
+}
+
 // Keywords that suggest the user is relaying new knowledge worth capturing as a note.
 const CAPTURE_CUES = [
   /\bbecause\b/i,
@@ -247,18 +282,49 @@ function saveFingerprints(path, state) {
 }
 
 async function handleSessionStart(projectRoot, vaultPath, cliBin) {
+  // Capture the previous mode (if any) before we reset — so future-Claude
+  // can tell, from log.md, that we rolled back from research/outage without
+  // being shown the postmortem prompt (which is the lossy case).
+  const priorMode = readMode(projectRoot);
   resetCapturePending(projectRoot);
-  // SessionStart resets mode to default — Phase 4 contract.
   writeMode(projectRoot, "vault-first");
+  if (priorMode !== "vault-first") {
+    logMaybeModeChange(cliBin, vaultPath, priorMode, "vault-first");
+  }
+
   const query = sessionSeedQuery(projectRoot);
   debug(`sessionstart seed query: "${query}"`);
   const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "6", query], 30_000);
-  if (!hits || hits.length === 0) {
-    emit("SessionStart", "");
-    return;
+
+  // State-delta preload — 14-day window per Phase 4.5 design.
+  const sinceMs = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const sinceIso = new Date(sinceMs).toISOString();
+  const recentEntries = queryRecentLogViaCli(cliBin, vaultPath, sinceIso, 30);
+
+  const searchBlock = hits && hits.length > 0 ? formatContextBlock("sessionstart", query, hits) : "";
+  const stateBlock = formatStateDeltaBlock(sinceIso, recentEntries);
+
+  const parts = [stateBlock, searchBlock].filter(Boolean);
+  emit("SessionStart", parts.join("\n\n"));
+}
+
+function formatStateDeltaBlock(sinceIso, entries) {
+  if (!entries || entries.length === 0) {
+    return `<vault-state-since date="${sinceIso}">\nNo logged activity in the last 14 days.\n</vault-state-since>`;
   }
-  const block = formatContextBlock("sessionstart", query, hits);
-  emit("SessionStart", block);
+  const byKind = new Map();
+  for (const e of entries) byKind.set(e.kind, (byKind.get(e.kind) || 0) + 1);
+  const kindSummary = [...byKind.entries()].map(([k, n]) => `${k}=${n}`).join(", ");
+
+  const lines = [`<vault-state-since date="${sinceIso}">`];
+  lines.push(`Totals: ${kindSummary}`);
+  lines.push("");
+  lines.push(`Most recent ${Math.min(entries.length, 6)}:`);
+  for (const e of entries.slice(-6)) {
+    lines.push(`- ${e.ts} · ${e.kind}: ${e.summary}`);
+  }
+  lines.push(`</vault-state-since>`);
+  return lines.join("\n");
 }
 
 function emitStop(additionalContext, block) {
@@ -405,7 +471,22 @@ async function main() {
     }
   } catch (e) {
     debug(`handler failed: ${e.message}`);
-    emit(eventName, "");
+    // Record the crash so future-Claude can see that the hook failed here,
+    // not just that nothing happened. Swallow log errors — never mask the real
+    // failure surface (which is the empty emit below).
+    if (cliBin && vaultPath) {
+      logEventViaCli(cliBin, vaultPath, "error", `hook crash (${eventName}): ${e.message}`, {
+        tool: "vault-context-hook",
+        event: eventName,
+        stack: (e.stack || "").split("\n").slice(0, 6).join(" | "),
+      });
+    }
+    if (eventName === "Stop") {
+      // Stop hook shape is different — empty object, not empty additionalContext.
+      process.stdout.write("{}\n");
+    } else {
+      emit(eventName, "");
+    }
   }
 }
 

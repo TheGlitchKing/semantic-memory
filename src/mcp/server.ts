@@ -566,6 +566,13 @@ export async function createServer(notesPath: string, options: ServerOptions = {
           validate: args.validate,
           allowLintWarnings: args.allow_lint_warnings,
         });
+        if (!result.ok && !args.dry_run) {
+          await logEvent(notesPath, {
+            kind: "error",
+            summary: `apply_patch failed: ${result.errors[0] ?? "unknown"}`,
+            payload: { tool: "apply_patch", errors: result.errors, rolled_back: result.rolledBack.length },
+          }).catch(() => { /* never let logging failure mask the real error */ });
+        }
         return textResponse(JSON.stringify(result, null, 2));
       }
     );
@@ -606,6 +613,19 @@ export async function createServer(notesPath: string, options: ServerOptions = {
         const result = await applyPatch(notesPath, preview.changeset, {
           dryRun: args.dry_run,
         });
+        if (result.ok && !args.dry_run) {
+          await logEvent(notesPath, {
+            kind: "synthesis",
+            summary: `synthesized ${preview.title}`,
+            payload: { path: preview.path, type: args.type, sources: args.sources ?? [], derived_from: args.derived_from ?? [] },
+          }).catch(() => {});
+        } else if (!result.ok && !args.dry_run) {
+          await logEvent(notesPath, {
+            kind: "error",
+            summary: `synthesize_note failed: ${result.errors[0] ?? "unknown"}`,
+            payload: { tool: "synthesize_note", path: preview.path, errors: result.errors },
+          }).catch(() => {});
+        }
         return textResponse(
           JSON.stringify(
             {
@@ -661,7 +681,18 @@ export async function createServer(notesPath: string, options: ServerOptions = {
               unit_paths: preview.unitPaths,
               source_uri: args.source.source_uri,
             },
-          });
+          }).catch(() => {});
+        } else if (!result.ok && !dry) {
+          await logEvent(notesPath, {
+            kind: "error",
+            summary: `ingest_source failed: ${result.errors[0] ?? "unknown"}`,
+            payload: {
+              tool: "ingest_source",
+              source_uri: args.source.source_uri,
+              source_title: args.source.source_title,
+              errors: result.errors,
+            },
+          }).catch(() => {});
         }
         return textResponse(
           JSON.stringify(

@@ -342,6 +342,62 @@ program
   });
 
 program
+  .command("log-event")
+  .description("Append a structured event to the vault's log.md (used by hooks and CI scripts — same shape as mcp__semantic-vault__log_event)")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .requiredOption("--kind <name>", "Event category: ingest, synthesis, error, mode_change, etc.")
+  .requiredOption("--summary <text>", "One-line human summary")
+  .option("--payload <json>", "Structured payload as JSON string")
+  .action(async (opts) => {
+    const { logEvent } = await import("../core/log.js");
+    let payload: Record<string, unknown> | undefined;
+    if (opts.payload) {
+      try {
+        payload = JSON.parse(opts.payload);
+      } catch (e: any) {
+        console.error(`invalid --payload JSON: ${e.message}`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+    try {
+      const entry = await logEvent(resolve(opts.notes), {
+        kind: opts.kind,
+        summary: opts.summary,
+        payload,
+      });
+      console.log(JSON.stringify(entry));
+    } catch (e: any) {
+      console.error(`log-event failed: ${e.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("log-query")
+  .description("Read structured log entries from log.md — filters by kind, date range, limit")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--kind <name>", "Filter by kind (ingest, synthesis, error, mode_change, etc.)")
+  .option("--after <iso>", "ISO timestamp — only entries on or after")
+  .option("--before <iso>", "ISO timestamp — only entries on or before")
+  .option("--limit <n>", "Max entries (most recent)", (v) => parseInt(v, 10))
+  .action(async (opts) => {
+    const { logQuery } = await import("../core/log.js");
+    try {
+      const entries = await logQuery(resolve(opts.notes), {
+        kind: opts.kind,
+        after: opts.after,
+        before: opts.before,
+        limit: opts.limit,
+      });
+      console.log(JSON.stringify(entries));
+    } catch (e: any) {
+      console.error(`log-query failed: ${e.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
   .command("install-schema")
   .description("Bootstrap vault.schema.yml in the vault root with the default schema")
   .requiredOption("--notes <path>", "Path to markdown notes directory")
