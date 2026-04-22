@@ -61,6 +61,25 @@ body`
     expect(text).toContain("bad.md");
   });
 
+  it("flags broken wikilinks", async () => {
+    await seed(
+      tempDir,
+      "alive.md",
+      `---
+title: alive
+type: note
+status: active
+sources: [x]
+---
+Links to [[alive]] and [[ghost]] and [[also-ghost]].`
+    );
+    const r = await lintVault(tempDir, { pathGlob: "alive.md" });
+    const broken = r.byRule.broken_links.map((f) => f.message);
+    expect(broken.some((m) => m.includes("ghost"))).toBe(true);
+    expect(broken.some((m) => m.includes("also-ghost"))).toBe(true);
+    expect(broken.some((m) => m.includes("alive"))).toBe(false);
+  });
+
   it("formatLintReport shows 'clean' when no findings", async () => {
     await seed(
       tempDir,

@@ -5,6 +5,7 @@ import matter from "gray-matter";
 import type { UpdateNoteOptions } from "./types.js";
 import { NoteCrud } from "./crud.js";
 import { loadSchema, validateNote, type LintFinding, type VaultSchema } from "./schema.js";
+import { regenIndexesForPaths, type RegenResult } from "./index-regen.js";
 
 export interface PatchCreate {
   path: string;
@@ -39,6 +40,8 @@ export interface ApplyPatchOptions {
   dryRun?: boolean;
   validate?: boolean;
   allowLintWarnings?: boolean;
+  /** Regenerate INDEX.md in directories touched by this patch. Default: true. */
+  regenIndexes?: boolean;
 }
 
 export interface AppliedOp {
@@ -52,6 +55,8 @@ export interface ApplyPatchResult {
   rolledBack: AppliedOp[];
   lint: LintFinding[];
   errors: string[];
+  /** Index files regenerated as a side-effect. Empty if regenIndexes=false or dry-run. */
+  indexes_regenerated?: RegenResult[];
 }
 
 interface Snapshot {
@@ -195,7 +200,22 @@ export async function applyPatch(
     return { ok: false, applied, rolledBack, lint, errors };
   }
 
-  return { ok: true, applied, rolledBack: [], lint, errors };
+  let indexes_regenerated: RegenResult[] = [];
+  if (options.regenIndexes !== false) {
+    const touched = [
+      ...(changeset.creates ?? []).map((c) => c.path),
+      ...(changeset.deletes ?? []).map((d) => d.path),
+      ...(changeset.moves ?? []).flatMap((m) => [m.from, m.to]),
+    ];
+    try {
+      indexes_regenerated = await regenIndexesForPaths(notesPath, touched);
+    } catch (e) {
+      // Non-fatal: patch succeeded; index regen is a best-effort side effect.
+      errors.push(`index regen failed (patch still applied): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return { ok: true, applied, rolledBack: [], lint, errors, indexes_regenerated };
 }
 
 async function rollback(snapshots: Snapshot[]): Promise<AppliedOp[]> {

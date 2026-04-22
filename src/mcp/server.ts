@@ -14,8 +14,11 @@ import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
 import { Watcher } from "../core/watcher.js";
 import { applyPatch, type ChangeSet } from "../core/patch.js";
 import { buildSynthesizeChangeSet } from "../core/synthesize.js";
+import { buildIngestChangeSet } from "../core/ingest.js";
 import { lintVault } from "../core/lint.js";
 import { installDefaultSchema } from "../core/schema.js";
+import { logEvent, logQuery } from "../core/log.js";
+import { regenIndexesForPaths, regenDirectoryIndex } from "../core/index-regen.js";
 import type { IndexedDocument, IndexState, VaultStats } from "../core/types.js";
 
 export interface ServerOptions {
@@ -617,6 +620,67 @@ export async function createServer(notesPath: string, options: ServerOptions = {
     );
 
     server.tool(
+      "ingest_source",
+      "Build + apply a ChangeSet that ingests a source (paper, doc, URL) and the notes extracted from it. Produces one sources/<slug>.md note (type=source) plus one create per extracted unit, each stamped with derived_from pointing at the source. Routes through apply_patch — atomic, validated, rollback-capable, dry-run supported.",
+      {
+        source: z.object({
+          source_uri: z.string(),
+          source_title: z.string(),
+          source_type: z.string().optional(),
+          source_path: z.string().optional(),
+          source_summary: z.string().optional(),
+          source_tags: z.array(z.string()).optional(),
+        }),
+        units: z.array(
+          z.object({
+            path: z.string(),
+            title: z.string().optional(),
+            content: z.string(),
+            type: z.string().optional(),
+            extra_derived_from: z.array(z.string()).optional(),
+            extra_frontmatter: z.record(z.unknown()).optional(),
+            confidence: z.string().optional(),
+          })
+        ),
+        dry_run: z.boolean().optional().default(false),
+        auto_apply: z.boolean().optional().default(true).describe("If false, force dry-run regardless of dry_run flag — use for review-first workflows"),
+      },
+      async (args) => {
+        const preview = buildIngestChangeSet({
+          source: args.source,
+          units: args.units,
+        });
+        const dry = args.dry_run || args.auto_apply === false;
+        const result = await applyPatch(notesPath, preview.changeset, { dryRun: dry });
+        if (result.ok && !dry) {
+          await logEvent(notesPath, {
+            kind: "ingest",
+            summary: `ingested ${preview.unitPaths.length} note(s) from ${args.source.source_title}`,
+            payload: {
+              source_path: preview.sourcePath,
+              unit_paths: preview.unitPaths,
+              source_uri: args.source.source_uri,
+            },
+          });
+        }
+        return textResponse(
+          JSON.stringify(
+            {
+              preview: {
+                source_path: preview.sourcePath,
+                unit_paths: preview.unitPaths,
+              },
+              result,
+              dry_run: dry,
+            },
+            null,
+            2
+          )
+        );
+      }
+    );
+
+    server.tool(
       "install_schema",
       "Bootstrap vault.schema.yml in the vault root with the default schema (note/decision/gotcha/source types + provenance fields). Skipped if present unless force=true.",
       { force: z.boolean().optional().default(false) },
@@ -659,6 +723,69 @@ export async function createServer(notesPath: string, options: ServerOptions = {
       return textResponse(JSON.stringify(report.byRule.stale, null, 2));
     }
   );
+
+  server.tool(
+    "find_broken_links",
+    "Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
+    { pathGlob: z.string().optional() },
+    async ({ pathGlob }) => {
+      const report = await lintVault(notesPath, { pathGlob });
+      return textResponse(JSON.stringify(report.byRule.broken_links, null, 2));
+    }
+  );
+
+  // --- Log tools (Phase 3) ---
+  server.tool(
+    "log_event",
+    "Append a structured event to the vault's log.md. Each entry renders as a human line + a machine-readable YAML block for later querying.",
+    {
+      kind: z.string().describe("Category: ingest, synthesis, decision, incident, etc."),
+      summary: z.string().describe("One-line human summary"),
+      payload: z.record(z.unknown()).optional().describe("Arbitrary structured data"),
+    },
+    async (args) => {
+      const entry = await logEvent(notesPath, args);
+      return textResponse(JSON.stringify(entry, null, 2));
+    }
+  );
+
+  server.tool(
+    "log_query",
+    "Read structured log entries filtered by kind and/or date range. Returns parsed entries from log.md.",
+    {
+      kind: z.string().optional(),
+      after: z.string().optional().describe("ISO timestamp (inclusive)"),
+      before: z.string().optional().describe("ISO timestamp (inclusive)"),
+      limit: z.coerce.number().optional(),
+    },
+    async (args) => {
+      const entries = await logQuery(notesPath, args);
+      return textResponse(JSON.stringify(entries, null, 2));
+    }
+  );
+
+  // --- Index regen tools (Phase 3) ---
+  if (!options.readOnly) {
+    server.tool(
+      "regenerate_index",
+      "Force regeneration of INDEX.md for one directory (or all affected by a list of paths). Idempotent — skips write if unchanged.",
+      {
+        directory: z.string().optional().describe("Directory path relative to vault root (mutually exclusive with 'paths')"),
+        paths: z.array(z.string()).optional().describe("Files to infer affected directories from"),
+      },
+      async ({ directory, paths }) => {
+        let results;
+        if (directory) {
+          results = [await regenDirectoryIndex(notesPath, directory)];
+        } else if (paths && paths.length > 0) {
+          results = await regenIndexesForPaths(notesPath, paths);
+        } else {
+          return textResponse("Provide either `directory` or `paths`.");
+        }
+        return textResponse(JSON.stringify(results, null, 2));
+      }
+    );
+  }
 
   server.tool(
     "lint_vault",
