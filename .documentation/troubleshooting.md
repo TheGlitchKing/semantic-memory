@@ -1,274 +1,212 @@
 # Troubleshooting
 
-## Quick Diagnostics
+> Known failure modes across all five layers. Each has a symptom, a likely cause, and a specific diagnostic command. This doc covers the full sidekick stack; the legacy substrate-only troubleshooting lives at the bottom.
 
-```bash
-# Check vault contents and index health
-semantic-pages --notes ./vault --stats
+## Installation + plugin runtime
 
-# Check what model is currently indexed
-cat .semantic-pages-index/meta.json
-# → {"model":"sentence-transformers/all-MiniLM-L6-v2","dimensions":384,"totalChunks":312,"indexedAt":"2026-..."}
+### "plugin not found" after `/plugin install semantic-sidekick`
+- **Cause:** marketplace wasn't added, or the plugin name in the marketplace doesn't match.
+- **Check:** `cat .claude-plugin/marketplace.json` — the `plugins[0].name` must match what you ran `/plugin install` with.
+- **Fix:** `/plugin marketplace list` confirms registration; `/plugin marketplace add <url>` re-adds.
 
-# Force a clean reindex
-semantic-pages --notes ./vault --reindex
-```
+### `.mcp.json` shows npx-form instead of local-bin form
+- **Cause:** pre-0.10.0 SessionStart hook wrote a fragile form; reconcile hook runs only on new sessions.
+- **Fix:** `semantic-sidekick normalize-config [--dry-run]` rewrites to stable form. Backs up to `.mcp.json.bak` and verifies the binary starts before committing.
 
----
+### `ERR_MODULE_NOT_FOUND` on first MCP call
+- **Cause:** corrupted npx cache (classic failure mode that triggered 0.10.0).
+- **Fix:** `semantic-sidekick healthcheck` auto-heals by rm-rf'ing the bad cache dir and retrying. Manual: `rm -rf ~/.npm/_npx/*/node_modules/@theglitchking`.
 
-## Installation Problems
-
-### `npx: command not found` or `npx` is very slow
-
-```bash
-# Check Node version — must be 18+
-node --version
-
-# Use the full package name with scope
-npx @theglitchking/semantic-pages --notes ./vault --stats
-
-# Or install globally for faster startup
-npm install -g @theglitchking/semantic-pages
-semantic-pages --notes ./vault --stats
-```
-
-### `hnswlib-node` fails to install (native addon build error)
-
-`hnswlib-node` requires a C++ compiler. Error looks like: `gyp ERR! build error`.
-
-```bash
-# Ubuntu / Debian / WSL2
-sudo apt install build-essential python3
-
-# macOS
-xcode-select --install
-
-# Windows (without WSL2)
-npm install --global --production windows-build-tools
-
-# Then retry
-npm install -g @theglitchking/semantic-pages
-```
-
-### Model download fails on first run
-
-```
-Error: Download failed (403): https://huggingface.co/...
-```
-
-HuggingFace occasionally rate-limits unauthenticated requests.
-
-```bash
-# Wait a few minutes and retry, or set a HF token:
-export HF_TOKEN=your_token_here
-semantic-pages --notes ./vault --reindex
-
-# If the model file is partially downloaded / corrupted:
-rm -rf ~/.semantic-pages/models/
-semantic-pages --notes ./vault --reindex
-```
+### "No vault found" on SessionStart
+- **Cause:** `.mcp.json` missing or `semantic-vault` entry not present.
+- **Check:** `grep -A5 semantic-vault .mcp.json`.
+- **Fix:** restart Claude Code; reconcile hook writes `.mcp.json` on SessionStart. If that fails, check `hooks/session-start.js` is wired in `.claude/settings.json`.
 
 ---
 
-## Indexing Problems
+## Index + search
 
-### Index takes too long
+### Search CLI fails with "index not built"
+- **Cause:** `.semantic-sidekick-index/` missing or incomplete.
+- **Fix:** `semantic-sidekick --notes <vault> --reindex`.
 
-Normal times for the default MiniLM model:
-- 100 notes / ~600 chunks: ~30 seconds
-- 500 notes / ~3,000 chunks: ~5 minutes
-- 2,000 notes / ~12,000 chunks: ~20 minutes
+### Search results are stale (new notes not surfacing)
+- **Cause:** parsed-doc cache is from a prior reindex; watcher didn't catch the add.
+- **Check:** `cat <vault>/.semantic-sidekick-index/meta.json` — look at `indexedAt`.
+- **Fix:** `semantic-sidekick --notes <vault> --reindex` rebuilds both the vector index and the parsed-doc cache.
 
-If it's taking much longer, check:
+### Hook latency is 6+ seconds per prompt
+- **Cause:** parsed-doc cache missing; indexer re-parses all notes per call.
+- **Check:** `ls -la <vault>/.semantic-sidekick-index/docs.cache.json`.
+- **Fix:** run `--reindex` once; subsequent hook calls load the cache (~0.7s).
 
-1. **Which model is being used?** nomic takes 4–5x longer than MiniLM.
-   ```bash
-   # Look for "Embedder ready" line in stderr output
-   semantic-pages --notes ./vault --reindex
-   # Should say: Embedder ready (all-MiniLM-L6-v2, native, 384d, batch=16)
-   ```
+### Model mismatch error on search
+- **Cause:** changed `--model` value without reindexing; cached embeddings are invalid.
+- **Fix:** `--reindex` regenerates embeddings with the current model.
 
-2. **Is native ONNX working?** WASM fallback is ~10x slower than native.
-   ```bash
-   # Confirm it says "native" not "wasm" in the ready message
-   # If it says "wasm", install onnxruntime-node:
-   npm install -g onnxruntime-node
-   ```
-
-3. **Batch size wrong for your model?** See [Performance Tuning](./performance-tuning.md).
-
-### Index stopped mid-way (killed process)
-
-The embedder saves progress every 100 chunks to `embeddings.json`. Resume:
-
-```bash
-# Just run reindex again — it picks up where it left off
-semantic-pages --notes ./vault --reindex
-```
-
-Only chunks that weren't saved will be re-embedded.
-
-### `Model changed ... forcing reindex` on every start
-
-```
-Model changed (nomic-ai/nomic-embed-text-v1.5 → sentence-transformers/all-MiniLM-L6-v2), forcing reindex
-```
-
-This happens once when upgrading from a version that used nomic as default (pre-0.4.3) to one that uses MiniLM. It's expected — just let the reindex complete. After that, the model matches and subsequent starts load from cache instantly.
-
-If it keeps happening, check that `meta.json` is being written:
-```bash
-cat .semantic-pages-index/meta.json
-# Should contain the current model name
-```
+### HNSW / embedder fails to initialize
+- **Cause:** missing native dependencies (`hnswlib-node`, `onnxruntime-node`).
+- **Fix:** `npm install` in the plugin dir; if onnxruntime-node fails to build, falls back to onnxruntime-web automatically.
 
 ---
 
-## Search Problems
+## Hooks
 
-### Semantic search returns "Indexing in progress"
+### Stop hook error: "Hook JSON output validation failed — (root): Invalid input"
+- **Cause:** hook emitted `hookSpecificOutput` for the Stop event. Stop schema only accepts top-level fields (`decision`, `reason`, `continue`, `stopReason`, `suppressOutput`).
+- **Fix:** already fixed in commit `183aa30`. If you still see it, you're on an older build — `git pull` and `npm run build`.
 
-The server is still building the index in the background. Wait for indexing to finish. You can poll:
+### Hook doesn't fire at all
+- **Check 1:** `.claude/settings.json` has `hooks.SessionStart[0].hooks[0].command` pointing at `vault-context.js`.
+- **Check 2:** `node hooks/vault-context.js` runs without error (from the repo root).
+- **Check 3:** Claude Code sees the plugin — `/hooks` command in a live session lists registered hooks.
 
-```bash
-# Check progress via get_stats tool, or watch stderr:
-semantic-pages --notes ./vault 2>&1 | grep -E "(Embedding|ready)"
-```
+### Hook fires but no context is injected
+- **Cause:** hook failed silently (fails-open design). Most likely: no vault configured, search CLI errored, or hook timeout.
+- **Fix:** run with `SIDEKICK_DEBUG=1 claude` and expand the hook line with `ctrl+o` — stderr shows exactly where it bailed.
 
-Or use `--reindex` to block until complete before starting the MCP server in your workflow.
+### SessionStart fires but `<vault-state-since>` is missing
+- **Cause:** `log-query` CLI failed. Check for a `kind=error` entry from a prior session.
+- **Fix:** `semantic-sidekick log-query --notes <vault>` manually — if that errors, you've diagnosed it.
 
-### Semantic search returns irrelevant results
+### UserPromptSubmit hook not firing on prompts that should match
+- **Cause 1:** mode is `outage-silence` — hook intentionally suppresses.
+- **Cause 2:** fingerprint collision — this prompt (or a near-duplicate) was asked recently.
+- **Check:** `cat .claude/.sidekick-mode` + `cat .claude/.sidekick-fingerprints.json`.
+- **Fix:** `/mode vault-first` to exit outage; `rm .claude/.sidekick-fingerprints.json` to clear dedupe.
 
-**Most common cause**: Query is too short or generic.
+### Capture-on-close doesn't fire
+- **Cause:** `.sidekick-capture-pending.json` is empty — no cue matched this session's prompts.
+- **Check:** `cat .claude/.sidekick-capture-pending.json` mid-session (before Stop) to verify cues were detected.
+- **If detected but Stop still doesn't block:** check `SIDEKICK_DEBUG=1` output for stop-hook exit path (loop guard, mode, etc.).
 
-- Bad: `search_semantic("auth")` — too broad
-- Good: `search_semantic("JWT refresh token rotation strategy")`
-
-**Check your chunk quality:**
-```bash
-semantic-pages --notes ./vault --stats
-# Chunks should be >> notes (typically 5–10x)
-# If chunks ≈ notes, your documents are very short
-```
-
-**Consider switching to nomic** for better quality on dense technical writing:
-```bash
-semantic-pages --notes ./vault \
-  --model nomic-ai/nomic-embed-text-v1.5 \
-  --quantized --batch-size 1 --reindex
-```
-
-### Search results are stale after editing files
-
-The file watcher should catch changes within seconds. If it's not:
-
-1. Check the watcher is running (don't use `--no-watch`)
-2. Some editors write via temp file rename, which can confuse watchers
-3. Force a reindex:
-   ```bash
-   semantic-pages --notes ./vault --reindex
-   ```
-
-### `search_graph` returns no results
-
-Graph traversal requires `[[wikilinks]]` or shared `#tags` to exist. If your notes don't use either:
-
-```bash
-# Check graph stats
-semantic-pages tools graph_statistics
-# If totalEdges: 0, your notes have no links or tags
-```
-
-Add wikilinks between related notes: `[[other-note]]` or shared tags in frontmatter: `tags: [backend, api]`.
+### Stop hook loops
+- **Cause:** `CLAUDE_STOP_HOOK_ACTIVE` env var missing in your harness.
+- **Fix:** In Claude Code proper, this is set automatically. For other harnesses, set it when re-invoking after a block response.
 
 ---
 
-## MCP / Claude Integration Problems
+## Skills + modes
 
-### Claude doesn't see the semantic-pages tools
+### Skill doesn't activate when expected
+- **Check:** `ls -la .claude/skills/` — each skill directory should be present as a symlink to `skills/<name>/`.
+- **Fix (dev):** `ln -sfn ../../skills/<name> .claude/skills/<name>`.
+- **Fix (installed plugin):** re-run `npm install` or `/plugin install semantic-sidekick` — link-skills.js recreates symlinks.
 
-1. **Check `.mcp.json` syntax** — must be valid JSON with the `mcpServers` key:
-   ```json
-   {
-     "mcpServers": {
-       "semantic-pages": {
-         "type": "stdio",
-         "command": "npx",
-         "args": ["-y", "@theglitchking/semantic-pages", "--notes", "./vault"]
-       }
-     }
-   }
-   ```
+### `[research]` / `[outage]` prefix appears on wrong turns
+- **Cause:** skill description's entry signals are too permissive.
+- **Immediate fix:** `/mode vault-first` to override.
+- **Long-term:** file a misfire as a gotcha note; tune the skill's `description` field to demote the specific false-positive trigger.
 
-2. **Check the path** — `--notes` must point to a directory that exists:
-   ```bash
-   ls ./vault  # should list .md files
-   ```
+### `/mode` appears to write but subsequent hooks don't see the change
+- **Check:** `cat .claude/.sidekick-mode` after `/mode research`.
+- **Cause:** the command file relies on Claude executing the bash to write the file. If Claude skipped that step, the mode isn't persisted.
+- **Fix:** rerun `/mode research` and confirm the bash runs; or manually `printf 'research' > .claude/.sidekick-mode`.
 
-3. **Test the server directly** — it should start without errors:
-   ```bash
-   npx @theglitchking/semantic-pages --notes ./vault 2>&1 | head -5
-   # Should see: Embedder ready (all-MiniLM-L6-v2, native, 384d, batch=16)
-   ```
-
-### Server crashes immediately on start
-
-```bash
-# Run with full error output
-node $(npm root -g)/@theglitchking/semantic-pages/dist/cli/index.js \
-  --notes ./vault 2>&1
-```
-
-Common causes:
-- `--notes` path doesn't exist
-- Node version < 18
-- Corrupted ONNX model file (fix: `rm -rf ~/.semantic-pages/models/`)
-
-### Claude reindexes on every session start
-
-Fixed in v0.4.1. If you're on an older version, upgrade:
-```bash
-npm install -g @theglitchking/semantic-pages@latest
-# or update package.json and bump the version in .mcp.json args
-```
+### `/vault <query>` returns nothing
+- **Cause:** index may be empty or query has no matches.
+- **Check:** `semantic-sidekick --notes <vault> --stats` shows note count.
+- **Fix:** add notes; `--reindex`; try a broader query.
 
 ---
 
-## Index Corruption
+## Schema + lint
 
-### Reset and rebuild from scratch
+### apply_patch rejects every create with `missing required field "title"`
+- **Cause:** `crud.update` with `mode: overwrite` discards existing frontmatter; the "new content" has no title.
+- **Fix:** use `patch-by-heading` or include YAML frontmatter in the new content block.
 
-```bash
-# Delete index (safe — it's fully regenerated from your .md files)
-rm -rf .semantic-pages-index/
+### Lint shows errors on notes that *look* valid
+- **Check:** field name typos (`tittle:`), enum value mismatch (`status: published` when enum is `[draft, active, ...]`).
+- **Fix:** `semantic-sidekick lint --notes <vault> --json | jq '.byRule.schema_violations'` shows the exact message per file.
 
-# Delete cached models if you suspect corruption
-rm -rf ~/.semantic-pages/models/
+### Pre-commit hook blocks despite me wanting to commit a WIP
+- **Fix:** `SKIP_VAULT_LINT=1 git commit ...` — documented in `scripts/pre-commit-lint.sh`.
 
-# Full clean rebuild
-semantic-pages --notes ./vault --reindex
-```
-
-Your markdown files are never modified by semantic-pages. Only the `.semantic-pages-index/` directory and the model cache are managed by the tool.
+### Broken-link lint flags legitimate links
+- **Cause:** target note name has a different basename than the `[[wikilink]]` text.
+- **Fix:** rename the link to match, or rename the target file to match.
 
 ---
 
-## Getting Help
+## Capture + synthesis
+
+### synthesize_note rejects with validation errors
+- **Cause:** the proposed frontmatter fails schema validation (missing title, bad status, etc.).
+- **Check:** the tool's response body has `result.lint[]` with specific findings.
+- **Fix:** pass the missing/correct fields. Re-try with `dry_run: true` to confirm.
+
+### Auto-wikilinks aren't inserted in synthesized notes
+- **Cause:** `related_notes` entries don't match a plain-text occurrence in the body (case-sensitive or code-block).
+- **Fix:** use exact basename or edit the body manually after synthesis.
+
+### ingest_source creates a duplicate source-note
+- **Cause:** reused `source_title` but new slugified `source_path` — pre-check thought it was a new note.
+- **Fix:** pass `source.source_path` explicitly to point at the existing source-note.
+
+---
+
+## Logs
+
+### log.md doesn't exist after several ingests
+- **Cause:** `logEvent` silently failed (disk full, permissions, read-only filesystem).
+- **Check:** `touch <vault>/log.md` — if permission denied, that's the issue.
+- **Fix:** fix filesystem perms. Prior events are lost; future events will resume.
+
+### log_query returns empty despite log.md having entries
+- **Cause:** entries were added in a format other than the one our writer produces (e.g., hand-edited with different YAML structure).
+- **Check:** open log.md, verify entries have ```yaml event fenced blocks.
+- **Fix:** use `mcp__semantic-vault__log_event` (or the CLI equivalent) to append; those emit the exact parseable shape.
+
+### State-delta preload shows "No logged activity" despite recent activity
+- **Cause:** window is 14 days; entries older than that don't appear. Or timestamps are inconsistent (UTC vs local).
+- **Check:** `semantic-sidekick log-query --notes <vault> --limit 5` — shows what the parser sees.
+
+---
+
+## The golden diagnostic sequence
+
+When something feels off and you don't know where to start:
 
 ```bash
-# Built-in help
-semantic-pages --help
-semantic-pages tools                    # list all 21 tools
-semantic-pages tools <tool-name>        # args + examples for a specific tool
+# 1. Current mode
+cat .claude/.sidekick-mode
 
-# Version
-semantic-pages --version
+# 2. Pending captures
+cat .claude/.sidekick-capture-pending.json
+
+# 3. Recent errors
+semantic-sidekick log-query --notes <vault> --kind error --limit 10
+
+# 4. Vault health
+semantic-sidekick lint --notes <vault> --json | jq '.counts'
+
+# 5. Index freshness
+cat <vault>/.semantic-sidekick-index/meta.json
+
+# 6. Full debug on next session
+SIDEKICK_DEBUG=1 claude
 ```
 
-File a bug: https://github.com/TheGlitchKing/semantic-pages/issues
+If steps 1-5 all look reasonable and step 6 shows the hook reaching its intended exit path, the system is operating correctly and the user-visible behavior is a tuning question (probably a skill description), not a bug.
 
-Include:
-- `semantic-pages --version` output
-- `node --version` output
-- The full error message / stderr output
-- Approximate vault size (notes count, chunks from `--stats`)
+---
+
+## Legacy substrate troubleshooting
+
+These are original `semantic-pages` diagnostics, preserved for substrate-level issues. For anything sidekick-specific, prefer the sections above.
+
+### Vault/index mismatch
+```bash
+# Show current model + indexed-at timestamp
+cat <vault>/.semantic-sidekick-index/meta.json
+
+# Re-embed with a specific model
+semantic-sidekick --notes <vault> --reindex --model nomic-ai/nomic-embed-text-v1.5
+```
+
+### Performance tuning
+See [performance-tuning.md](./performance-tuning.md) for worker count, batch size, and quantization tradeoffs.
+
+### Embedder options
+See [embedder-guide.md](./embedder-guide.md).

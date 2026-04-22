@@ -33,12 +33,26 @@ function readJson(path, fallback = null) {
   }
 }
 
-function hewtdEnabled() {
-  const settings = readJson(join(homedir(), ".claude", "settings.json"));
-  const enabled = settings?.enabledPlugins || {};
-  return Object.keys(enabled).some(
-    (k) => k.startsWith("hit-em-with-the-docs@") && enabled[k] === true,
-  );
+function hewtdEnabled(projectRoot) {
+  // Check user-level AND project-level settings. Plugin enablement is per-scope,
+  // and hewtd might be enabled at either. Project-scope was previously ignored,
+  // which caused the docs MCP to get silently removed by the reconcile pass on
+  // every SessionStart for users who'd enabled hewtd only per-project.
+  const candidates = [
+    join(homedir(), ".claude", "settings.json"),
+    join(projectRoot, ".claude", "settings.json"),
+    join(projectRoot, ".claude", "settings.local.json"),
+  ];
+  for (const path of candidates) {
+    const settings = readJson(path);
+    const enabled = settings?.enabledPlugins || {};
+    for (const key of Object.keys(enabled)) {
+      if (key.startsWith("hit-em-with-the-docs@") && enabled[key] === true) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Absolute path to the locally-installed bin script, or null. */
@@ -103,7 +117,7 @@ export function reconcile(projectRoot) {
 
   try { mkdirSync(vaultDir, { recursive: true }); } catch {}
 
-  const docsWired = hewtdEnabled() && existsSync(docsDir);
+  const docsWired = hewtdEnabled(projectRoot) && existsSync(docsDir);
 
   let data = { mcpServers: {} };
   if (existsSync(mcpPath)) {

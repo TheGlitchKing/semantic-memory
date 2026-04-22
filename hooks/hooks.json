@@ -1,5 +1,5 @@
 {
-  "description": "semantic-sidekick SessionStart hook — reconciles .mcp.json wiring and nudges/auto-updates per policy.",
+  "description": "semantic-sidekick activation + mode hooks. SessionStart reconciles .mcp.json + resets mode + preloads vault context. UserPromptSubmit injects vault search results (mode-aware, fingerprinted). Stop emits mode-specific transition-capture prompts (research→synthesis, outage→postmortem, vault-first→generic capture).",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,30 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/vault-context.js\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/vault-context.js\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/vault-context.js\""
           }
         ]
       }

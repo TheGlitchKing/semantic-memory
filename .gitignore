@@ -26,3 +26,10 @@ skills/*-workspace/
 # Local build / test artifacts
 *.tgz
 .claude/.semantic-sidekick-update-cache.json
+
+# Phase 1 activation hook runtime state
+.claude/.sidekick-fingerprints.json
+.claude/.sidekick-capture-pending.json
+
+# Stale semantic-first symlink (points at npx cache — regenerated per machine)
+.claude/skills/semantic-first

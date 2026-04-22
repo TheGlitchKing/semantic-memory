@@ -3,9 +3,12 @@ import remarkParse from "remark-parse";
 import remarkWikiLink from "remark-wiki-link";
 import matter from "gray-matter";
 import { glob } from "glob";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, writeFile, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import type { IndexedDocument } from "./types.js";
+
+const DOCS_CACHE_FILE = "docs.cache.json";
 
 const CHUNK_TARGET_CHARS = 2000; // ~512 tokens
 
@@ -29,6 +32,31 @@ export class Indexer {
       files.map((file) => this.indexFile(join(this.notesPath, file), file))
     );
     return docs;
+  }
+
+  /**
+   * Load parsed-doc cache from disk. Returns null if missing or unreadable.
+   * The cache is a verbatim JSON dump of a prior indexAll() result, written by
+   * saveDocsCache. Consumers (search CLI / hook path) prefer this over re-parsing
+   * 500+ markdown files; the tradeoff is that cache may be stale if the vault
+   * changed since the last reindex — same staleness window as the vector cache.
+   */
+  async loadDocsCache(indexPath: string): Promise<IndexedDocument[] | null> {
+    const p = join(indexPath, DOCS_CACHE_FILE);
+    if (!existsSync(p)) return null;
+    try {
+      const raw = await readFile(p, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      return parsed as IndexedDocument[];
+    } catch {
+      return null;
+    }
+  }
+
+  async saveDocsCache(indexPath: string, docs: IndexedDocument[]): Promise<void> {
+    const p = join(indexPath, DOCS_CACHE_FILE);
+    await writeFile(p, JSON.stringify(docs), "utf-8");
   }
 
   async indexFile(

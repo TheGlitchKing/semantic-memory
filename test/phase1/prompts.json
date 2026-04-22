@@ -1,0 +1,74 @@
+{
+  "description": "Phase 1 activation test suite — 10 natural-shape prompts. For each, the vault hook should either fire with the expected note in the top 5 hits (positive) or produce output that Claude would reasonably handle without auto-firing (negative).",
+  "vaultPath": "/home/tmarlette/workspace/the-glitch-kingdom/sidekick-test-vault",
+  "cases": [
+    {
+      "id": "pos-01-mfa-enforcement",
+      "expect": "vault-hit",
+      "prompt": "how does MFA enforcement work in this project?",
+      "mustIncludePath": "mfa-enforcement",
+      "rationale": "Operational/architectural question with a dedicated runbook and overview doc."
+    },
+    {
+      "id": "pos-02-keycloak-image",
+      "expect": "vault-hit",
+      "prompt": "what's the process for building the custom keycloak image?",
+      "mustIncludePath": "keycloak-image",
+      "rationale": "Direct match for troubleshooting/keycloak-image.md."
+    },
+    {
+      "id": "pos-03-supabase-migration",
+      "expect": "vault-hit",
+      "prompt": "what are our supabase migration procedures?",
+      "mustIncludePath": "supabase-migration",
+      "rationale": "Direct match — database/supabase-migration-procedures.md exists."
+    },
+    {
+      "id": "pos-04-vector-ingestion",
+      "expect": "vault-hit",
+      "prompt": "where does the vector ingestion api live and how is it structured?",
+      "mustIncludePath": "vector-ingestion",
+      "rationale": "Direct match — api/vector-ingestion-api.md."
+    },
+    {
+      "id": "pos-05-stripe-troubleshooting",
+      "expect": "vault-hit",
+      "prompt": "stripe integration is acting up, where do i look?",
+      "mustIncludePath": "stripe",
+      "rationale": "Troubleshooting question — should hit troubleshooting/stripe-troubleshooting.md."
+    },
+    {
+      "id": "pos-06-wsl-docker-networking",
+      "expect": "vault-hit",
+      "prompt": "why is my wsl2 docker networking broken?",
+      "mustIncludePath": "wsl2-docker",
+      "rationale": "Known-issue lookup — fixes/2026-02-wsl2-docker-networking.md."
+    },
+    {
+      "id": "pos-07-expert-chat-agent",
+      "expect": "vault-hit",
+      "prompt": "how does the expert chat agent work end-to-end?",
+      "mustIncludePath": "expert-chat-agent",
+      "rationale": "Spans multiple linked notes (api, database, troubleshooting) — tests prose question routing."
+    },
+    {
+      "id": "pos-08-provider-switching",
+      "expect": "vault-hit",
+      "prompt": "what's our pattern for switching database providers?",
+      "mustIncludePath": "provider-switching",
+      "rationale": "database/provider-switching.md — convention question."
+    },
+    {
+      "id": "neg-09-code-symbol",
+      "expect": "no-fire",
+      "prompt": "where is the parseAuth function defined?",
+      "rationale": "Code-symbol lookup — should be handled by Grep, not vault. Hook may still fire but should not be treated as the answer source."
+    },
+    {
+      "id": "neg-10-meta-question",
+      "expect": "no-fire",
+      "prompt": "what is 2+2?",
+      "rationale": "Not a project question. Hook fires but produces no useful hits; Claude should answer directly."
+    }
+  ]
+}

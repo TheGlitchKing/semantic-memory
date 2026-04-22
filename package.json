@@ -1,6 +1,6 @@
 {
   "name": "@theglitchking/semantic-sidekick",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Activation, mode-routing, and capture layer on top of semantic-pages. Turns a retrievable markdown vault into a present one — auto-fires during work, matches the situation (research vs code vs outage), and forces capture at transitions.",
   "type": "module",
   "main": "./dist/core/index.js",
@@ -19,7 +19,11 @@
     "hooks",
     "commands",
     "scripts/link-skills.js",
+    "scripts/pre-commit-lint.sh",
     "skills/semantic-first",
+    "skills/vault-first",
+    "skills/research-mode",
+    "skills/outage-silence",
     "README.md",
     "LICENSE"
   ],
@@ -72,7 +76,8 @@
     "onnxruntime-web": "^1.24.3",
     "remark-parse": "^11.0.0",
     "remark-wiki-link": "^2.0.1",
-    "unified": "^11.0.5"
+    "unified": "^11.0.5",
+    "yaml": "^2.4.0"
   },
   "devDependencies": {
     "@theglitchking/hit-em-with-the-docs": "latest",

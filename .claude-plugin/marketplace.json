@@ -5,14 +5,14 @@
     "email": "theglitchking@users.noreply.github.com"
   },
   "metadata": {
-    "description": "Official marketplace for semantic-sidekick - Semantic search + knowledge graph MCP server with auto-wiring for .claude/.vault and hit-em-with-the-docs companion",
-    "version": "0.10.0"
+    "description": "Single-plugin marketplace for semantic-sidekick — the activation + routing + capture layer on top of a markdown-vault MCP. Installable via /plugin marketplace add for direct-from-repo testing before central-marketplace registration.",
+    "version": "0.2.2"
   },
   "plugins": [
     {
       "name": "semantic-sidekick",
-      "description": "Semantic search + knowledge graph MCP server for markdown vaults. Auto-wires a read/write vault at .claude/.vault, and a read-only docs index at .documentation when hit-em-with-the-docs is also installed.",
-      "version": "0.10.0",
+      "description": "Activation + routing + capture layer on top of a markdown vault MCP. Hooks search on every prompt; skills route between vault-first / research / outage-silence modes; apply_patch / synthesize_note / ingest_source turn query-answers into durable artifacts with provenance. Turns a retrievable vault into a present knowledge prosthesis.",
+      "version": "0.2.2",
       "author": {
         "name": "TheGlitchKing"
       },
@@ -21,21 +21,36 @@
       "license": "MIT",
       "keywords": [
         "mcp",
+        "model-context-protocol",
         "semantic-search",
         "knowledge-graph",
         "markdown",
-        "vector-search",
-        "embeddings",
-        "wikilinks",
         "vault",
-        "claude-code"
+        "activation",
+        "routing",
+        "hooks",
+        "skills",
+        "vault-first",
+        "research-mode",
+        "outage-silence",
+        "provenance",
+        "synthesize-note",
+        "ingest-source",
+        "karpathy-wiki",
+        "claude-code",
+        "claude"
       ],
       "category": "search",
       "tags": [
+        "claude-plugin",
         "mcp-server",
         "semantic-search",
         "knowledge-graph",
-        "auto-wire"
+        "activation-hooks",
+        "mode-routing",
+        "provenance",
+        "vault",
+        "markdown"
       ],
       "source": {
         "source": "npm",
