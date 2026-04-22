@@ -148,6 +148,31 @@ function capturePendingPath(projectRoot) {
   return join(dir, ".sidekick-capture-pending.json");
 }
 
+const VALID_MODES = new Set(["vault-first", "research", "outage-silence"]);
+
+function modePath(projectRoot) {
+  return join(projectRoot, ".claude", ".sidekick-mode");
+}
+
+function readMode(projectRoot) {
+  try {
+    const m = readFileSync(modePath(projectRoot), "utf8").trim();
+    if (VALID_MODES.has(m)) return m;
+  } catch {}
+  return "vault-first";
+}
+
+function writeMode(projectRoot, mode) {
+  if (!VALID_MODES.has(mode)) return;
+  try {
+    const dir = join(projectRoot, ".claude");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(modePath(projectRoot), mode);
+  } catch (e) {
+    debug(`mode write failed: ${e.message}`);
+  }
+}
+
 // Keywords that suggest the user is relaying new knowledge worth capturing as a note.
 const CAPTURE_CUES = [
   /\bbecause\b/i,
@@ -223,6 +248,8 @@ function saveFingerprints(path, state) {
 
 async function handleSessionStart(projectRoot, vaultPath, cliBin) {
   resetCapturePending(projectRoot);
+  // SessionStart resets mode to default — Phase 4 contract.
+  writeMode(projectRoot, "vault-first");
   const query = sessionSeedQuery(projectRoot);
   debug(`sessionstart seed query: "${query}"`);
   const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "6", query], 30_000);
@@ -247,15 +274,50 @@ function emitStop(additionalContext, block) {
 }
 
 async function handleStop(projectRoot) {
-  const pending = readCapturePending(projectRoot);
-  if (pending.length === 0) {
+  const stopHookActive = process.env.CLAUDE_STOP_HOOK_ACTIVE === "1";
+  if (stopHookActive) {
+    // Already blocking — Claude is mid-response to our nudge. Clear and yield.
+    resetCapturePending(projectRoot);
     emitStop("", false);
     return;
   }
-  const stopHookActive = process.env.CLAUDE_STOP_HOOK_ACTIVE === "1";
-  // Don't re-block if the Stop hook is already blocking — Claude is mid-response to our nudge.
-  if (stopHookActive) {
+
+  const pending = readCapturePending(projectRoot);
+  const mode = readMode(projectRoot);
+
+  // Mode-specific transition-capture. research-mode and outage-silence each
+  // demand a structured synthesis on session end; vault-first reuses the
+  // Phase 2 generic capture prompt.
+  if (mode === "research" && pending.length > 0) {
+    const lines = [
+      `<vault-transition-capture mode="research" count="${pending.length}">`,
+      `Research session ending. ${pending.length} potential finding${pending.length === 1 ? "" : "s"} accumulated:`,
+      "",
+    ];
+    for (const item of pending.slice(0, 8)) {
+      lines.push(`- "${item.excerpt.replace(/\n/g, " ")}"`);
+    }
+    lines.push("");
+    lines.push(`Mandatory before Stop: call \`mcp__semantic-vault__synthesize_note\` with dry_run=true to preview a research-synthesis note (derived_from the session's filed sources). Review with the user, then apply. A research session that ends without synthesis is lost work.`);
+    lines.push(`</vault-transition-capture>`);
     resetCapturePending(projectRoot);
+    emitStop(lines.join("\n"), true);
+    return;
+  }
+
+  if (mode === "outage-silence") {
+    const lines = [
+      `<vault-transition-capture mode="outage-silence">`,
+      `Outage session ending. Before closing: draft a postmortem via \`mcp__semantic-vault__synthesize_note\` with \`type: gotcha\` (or \`decision\` if architectural). Include timeline, root cause, fix, preventive actions. Dry-run first, confirm with the user, then apply.`,
+      `</vault-transition-capture>`,
+    ];
+    resetCapturePending(projectRoot);
+    emitStop(lines.join("\n"), true);
+    return;
+  }
+
+  // vault-first default: existing capture-pending behavior.
+  if (pending.length === 0) {
     emitStop("", false);
     return;
   }
@@ -277,6 +339,14 @@ async function handleStop(projectRoot) {
 async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
   const prompt = typeof input.prompt === "string" ? input.prompt : "";
   if (!prompt || prompt.length < 8) {
+    emit("UserPromptSubmit", "");
+    return;
+  }
+  // Outage-silence suppresses auto-vault activity. Skill describes the contract;
+  // hook enforces it at the injection layer so even a misrouted turn stays quiet.
+  const mode = readMode(projectRoot);
+  if (mode === "outage-silence") {
+    debug("outage-silence mode — suppressing auto-vault context");
     emit("UserPromptSubmit", "");
     return;
   }

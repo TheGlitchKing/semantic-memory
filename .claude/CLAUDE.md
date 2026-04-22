@@ -65,6 +65,20 @@ Boundary: code-symbol lookups (`where is function X`) go to `Grep`. Active incid
 
 See `.claude/skills/vault-first/SKILL.md` for the full mode contract.
 
+## Routing / mode indicator rule (Phase 4)
+
+Three modes compete as ground-truth routers: `vault-first` (default), `research`, `outage-silence`. The active mode lives in `.claude/.sidekick-mode` as a single-line plain text value.
+
+- **Reading the mode:** `cat .claude/.sidekick-mode` (defaults to `vault-first` if missing).
+- **Explicit override:** `/mode research | vault-first | outage-silence` is **ground truth**. If the user set a mode explicitly, stay in it regardless of conversational signal until the user changes it or the session ends.
+- **Visible indicator:** prefix the first line of every response with `[research]` or `[outage]` when in those modes. `vault-first` is the default — no prefix needed.
+- **Mode transitions trigger capture:**
+  - Exiting `research` → draft a `synthesize_note` (dry-run first) of the session's findings before switching.
+  - Exiting `outage-silence` → draft a postmortem as `synthesize_note` (type `gotcha` or `decision`) before switching.
+- **`/vault <query>` is always respected**, even in `outage-silence`.
+
+When conversational cues strongly suggest a mode change and the explicit mode hasn't been set, switch visibly ("entering outage-silence — customer-visible issue") and update `.claude/.sidekick-mode` via the `/mode` command — don't drift silently.
+
 ## Notes
 <!-- Anything else Claude should know about this workspace -->
 
