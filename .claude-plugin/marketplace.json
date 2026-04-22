@@ -1,81 +1,24 @@
 {
-  "$schema": "https://raw.githubusercontent.com/TheGlitchKing/glitch-kingdom-of-plugins/main/schemas/plugin-schema.json",
   "name": "semantic-sidekick-marketplace",
-  "version": "0.2.0",
-  "description": "Single-plugin marketplace for semantic-sidekick — the activation + routing + capture layer on top of a markdown-vault MCP. Installable via /plugin marketplace add for direct-from-repo testing before central-marketplace registration.",
   "owner": {
     "name": "TheGlitchKing",
-    "email": "theglitchking@users.noreply.github.com",
-    "github": "TheGlitchKing"
+    "email": "theglitchking@users.noreply.github.com"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/TheGlitchKing/semantic-sidekick"
+  "metadata": {
+    "description": "Single-plugin marketplace for semantic-sidekick — the activation + routing + capture layer on top of a markdown-vault MCP. Installable via /plugin marketplace add for direct-from-repo testing before central-marketplace registration.",
+    "version": "0.2.0"
   },
   "plugins": [
     {
-      "id": "semantic-sidekick",
       "name": "semantic-sidekick",
-      "displayName": "Semantic Sidekick",
-      "type": "claude-plugin",
-      "version": "0.2.0",
       "description": "Activation + routing + capture layer on top of a markdown vault MCP. Hooks search on every prompt; skills route between vault-first / research / outage-silence modes; apply_patch / synthesize_note / ingest_source turn query-answers into durable artifacts with provenance. Turns a retrievable vault into a present knowledge prosthesis.",
+      "version": "0.2.0",
       "author": {
-        "name": "TheGlitchKing",
-        "email": "theglitchking@users.noreply.github.com"
+        "name": "TheGlitchKing"
       },
-      "repository": {
-        "type": "github",
-        "owner": "TheGlitchKing",
-        "repo": "semantic-sidekick",
-        "url": "https://github.com/TheGlitchKing/semantic-sidekick"
-      },
-      "source": {
-        "type": "external",
-        "path": "."
-      },
-      "installation": {
-        "methods": [
-          {
-            "type": "claude-marketplace",
-            "command": "/plugin install TheGlitchKing/semantic-sidekick"
-          },
-          {
-            "type": "npm",
-            "command": "npm install -g @theglitchking/semantic-sidekick"
-          },
-          {
-            "type": "npx",
-            "command": "npx @theglitchking/semantic-sidekick --notes ./vault"
-          },
-          {
-            "type": "manual",
-            "steps": [
-              "git clone https://github.com/TheGlitchKing/semantic-sidekick.git",
-              "cd semantic-sidekick",
-              "npm install && npm run build",
-              "npm install --save @theglitchking/semantic-sidekick  # from a vault project",
-              "npx semantic-sidekick --notes /path/to/vault --reindex"
-            ]
-          }
-        ],
-        "requirements": {
-          "node": ">=18.0.0",
-          "claude-code": ">=1.0.0"
-        }
-      },
-      "category": "search",
-      "tags": [
-        "claude-plugin",
-        "mcp-server",
-        "semantic-search",
-        "knowledge-graph",
-        "activation-hooks",
-        "mode-routing",
-        "provenance",
-        "vault",
-        "markdown"
-      ],
+      "homepage": "https://github.com/TheGlitchKing/semantic-sidekick",
+      "repository": "https://github.com/TheGlitchKing/semantic-sidekick.git",
+      "license": "MIT",
       "keywords": [
         "mcp",
         "model-context-protocol",
@@ -97,26 +40,23 @@
         "claude-code",
         "claude"
       ],
-      "license": "MIT",
-      "homepage": "https://github.com/TheGlitchKing/semantic-sidekick",
-      "status": "beta",
-      "dependencies": {
-        "requires": [],
-        "recommends": ["hit-em-with-the-docs", "persistent-planning"],
-        "includes": []
+      "category": "search",
+      "tags": [
+        "claude-plugin",
+        "mcp-server",
+        "semantic-search",
+        "knowledge-graph",
+        "activation-hooks",
+        "mode-routing",
+        "provenance",
+        "vault",
+        "markdown"
+      ],
+      "source": {
+        "source": "npm",
+        "package": "@theglitchking/semantic-sidekick"
       },
-      "features": {
-        "hooks": ["SessionStart", "UserPromptSubmit", "Stop"],
-        "commands": ["/mode", "/vault"],
-        "skills": ["vault-first", "research-mode", "outage-silence", "semantic-first"],
-        "mcpServers": ["semantic-vault"]
-      }
+      "strict": true
     }
-  ],
-  "categories": {
-    "search": {
-      "name": "Search & Knowledge",
-      "description": "Tools for semantic search, knowledge graphs, and information retrieval over markdown and code"
-    }
-  }
+  ]
 }
