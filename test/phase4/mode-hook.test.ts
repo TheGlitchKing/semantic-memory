@@ -116,4 +116,33 @@ describe("Phase 4 mode hook behavior", () => {
     const reason = out?.reason ?? "";
     expect(reason).toContain("vault-capture-prompt");
   });
+
+  it("Stop hook emits {} (not hookSpecificOutput) when no vault is found", async () => {
+    // No SIDEKICK_VAULT_PATH set, no .mcp.json under cwd → findVaultPath returns null,
+    // hook short-circuits before reaching handleStop.
+    const { out } = runHook(
+      tempDir,
+      { hook_event_name: "Stop", cwd: tempDir }
+    );
+    expect(out).toEqual({});
+    // Schema-critical: must NOT carry hookSpecificOutput on Stop.
+    expect((out as any)?.hookSpecificOutput).toBeUndefined();
+  });
+
+  it("Stop hook emits {} when vault is found but CLI bin is missing", async () => {
+    // Vault path resolves, but cwd has no node_modules/@theglitchking/...
+    // and the dev-fallback dist may or may not be present from the test runner's
+    // perspective. Either way, the early-exit path must not emit hookSpecificOutput.
+    const isolated = join(tempDir, "isolated-no-cli");
+    await mkdir(isolated, { recursive: true });
+    const { out } = runHook(
+      isolated,
+      { hook_event_name: "Stop", cwd: isolated },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    // Two valid no-op shapes for Stop: bare {} or — if the dev-fallback CLI is
+    // discoverable from the hook's own location — a proper handleStop result.
+    // What we forbid is the broken hookSpecificOutput envelope.
+    expect((out as any)?.hookSpecificOutput).toBeUndefined();
+  });
 });

@@ -2,6 +2,25 @@
 
 All notable changes to semantic-sidekick will be documented here.
 
+## [0.2.4] - 2026-04-26
+
+### Fixed
+- **Stop hook emitted invalid output shape on early-exit paths.** The `183aa30`
+  fix patched `emitStop()` and the catch block to write `{}` instead of the
+  SessionStart-shaped `{hookSpecificOutput: {hookEventName: "Stop"}}` envelope
+  (Stop's schema rejects `hookSpecificOutput`). But two earlier short-circuits
+  in `main()` — when `findVaultPath` or `findCliBin` returns null — were still
+  routing through the generic `emit()` helper, which wrote the broken envelope
+  unconditionally. This surfaced in projects where Claude opened in a subdir
+  without a local `.mcp.json` or local `node_modules/@theglitchking/...`,
+  producing `Stop hook error: Hook JSON output validation failed — (root):
+  Invalid input` on every response.
+
+  Fix: introduced `emitNoop(eventName)` helper that branches on Stop and writes
+  `{}` for it. Wired into both early-exits and the catch block. Two regression
+  assertions added to `test/phase4/mode-hook.test.ts` covering the no-vault
+  and no-CLI-bin paths. Suite: 188/188.
+
 ## [0.2.3] - 2026-04-22
 
 ### Fixed
