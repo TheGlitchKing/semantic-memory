@@ -450,13 +450,13 @@ async function main() {
   const vaultPath = findVaultPath(projectRoot);
   if (!vaultPath) {
     debug(`no vault found under ${projectRoot}`);
-    emit(eventName, "");
+    emitNoop(eventName);
     return;
   }
   const cliBin = findCliBin(projectRoot);
   if (!cliBin) {
     debug(`no CLI bin found`);
-    emit(eventName, "");
+    emitNoop(eventName);
     return;
   }
   debug(`vault=${vaultPath} bin=${cliBin}`);
@@ -481,12 +481,17 @@ async function main() {
         stack: (e.stack || "").split("\n").slice(0, 6).join(" | "),
       });
     }
-    if (eventName === "Stop") {
-      // Stop hook shape is different — empty object, not empty additionalContext.
-      process.stdout.write("{}\n");
-    } else {
-      emit(eventName, "");
-    }
+    emitNoop(eventName);
+  }
+}
+
+// Shape-aware no-op emit. Stop's schema rejects hookSpecificOutput; every other
+// event accepts the SessionStart-style envelope with empty additionalContext.
+function emitNoop(eventName) {
+  if (eventName === "Stop") {
+    process.stdout.write("{}\n");
+  } else {
+    emit(eventName, "");
   }
 }
 
