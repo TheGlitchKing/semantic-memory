@@ -2,6 +2,27 @@
 
 All notable changes to semantic-sidekick will be documented here.
 
+## [0.2.5] - 2026-04-28
+
+### Fixed
+- **`<vault-context>` hook injected an unconditional cite-or-deflect imperative
+  on every prompt.** The injected block ended with `Instructions: Read the top
+  hits ... cite filenames in your response. If none of these actually answer
+  the question, say "not in vault" and name the nearest misses.` That string is
+  more specific and immediate than the CLAUDE.md rule that says "ignore on
+  non-lookup prompts," so models in consumer projects (e.g. RE-InvestorHub)
+  obeyed the inline string and blurted citations like
+  `Vault citation: keycloak-custom-image.md unrelated — not in vault for this`
+  on debugging, status, and directive prompts.
+
+  Fix: rewrote the Instructions string in `hooks/vault-context.js` to be
+  conditional and aligned with the CLAUDE.md cite-or-deflect rule — apply only
+  on project prose lookups; ignore silently on meta/tool/debugging/status/
+  directive/conversational prompts; explicitly forbid the "X unrelated"
+  narration. Also gated `main()` on script invocation so the hook can be
+  imported by tests, and added a regression test asserting the new shape.
+  Suite: 189/189.
+
 ## [0.2.4] - 2026-04-26
 
 ### Fixed

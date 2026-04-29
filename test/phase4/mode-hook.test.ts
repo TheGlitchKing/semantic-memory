@@ -145,4 +145,22 @@ describe("Phase 4 mode hook behavior", () => {
     // What we forbid is the broken hookSpecificOutput envelope.
     expect((out as any)?.hookSpecificOutput).toBeUndefined();
   });
+
+  it("vault-context Instructions are conditional, not unconditional", async () => {
+    // Regression: the injected <vault-context> block used to issue an unconditional
+    // "cite filenames... say 'not in vault' and name the nearest misses" — which
+    // overrode CLAUDE.md's nuanced cite-or-deflect rule and caused models in
+    // consumer projects to narrate "X unrelated" on debugging/status/directive
+    // prompts. Instructions must scope cite-or-deflect to project prose lookups
+    // and explicitly forbid the noise narration.
+    const { formatContextBlock } = await import("../../hooks/vault-context.js");
+    const block = formatContextBlock("prompt", "test", [
+      { path: "foo.md", score: 0.5, snippet: "x" },
+    ]);
+    expect(block).toContain("project prose lookup");
+    expect(block).toContain("ignore this block silently");
+    expect(block).toContain('Do NOT narrate "X unrelated"');
+    // The old unconditional imperative must NOT survive verbatim.
+    expect(block).not.toMatch(/^Instructions: Read the top hits.*cite filenames in your response\. If none of these actually answer the question, say "not in vault" and name the nearest misses\.$/m);
+  });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@theglitchking/semantic-sidekick",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Activation, mode-routing, and capture layer on top of semantic-pages. Turns a retrievable markdown vault into a present one — auto-fires during work, matches the situation (research vs code vs outage), and forces capture at transitions.",
   "type": "module",
   "main": "./dist/core/index.js",
