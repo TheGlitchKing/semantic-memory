@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const DEBUG = process.env.SIDEKICK_DEBUG === "1";
 function debug(msg) {
@@ -125,7 +126,7 @@ function queryRecentLogViaCli(cliBin, vaultPath, sinceIso, limit = 20) {
   }
 }
 
-function formatContextBlock(source, query, hits) {
+export function formatContextBlock(source, query, hits) {
   if (!hits || hits.length === 0) return "";
   const lines = [];
   lines.push(`<vault-context source="${source}" query="${escapeAttr(query)}">`);
@@ -140,7 +141,7 @@ function formatContextBlock(source, query, hits) {
     }
   }
   lines.push("");
-  lines.push(`Instructions: Read the top hits via \`mcp__semantic-vault__read_note\` before answering, then cite filenames in your response. If none of these actually answer the question, say "not in vault" and name the nearest misses.`);
+  lines.push(`Instructions: This block is injected on every prompt. Apply cite-or-deflect ONLY when the user's prompt is a project prose lookup (how/why/where does X work here, runbook/process question, gotcha or known-issue lookup). For those, read promising hits via \`mcp__semantic-vault__read_note\` and either cite the filenames or say "not in vault" and name the nearest misses. For meta/tool questions, debugging, status checks, directives ("proceed", "merge"), or conversational turns, ignore this block silently. Do NOT narrate "X unrelated" or "not in vault for this" on non-lookup prompts — that is noise, not honest deflection.`);
   lines.push(`</vault-context>`);
   return lines.join("\n");
 }
@@ -495,4 +496,8 @@ function emitNoop(eventName) {
   }
 }
 
-main();
+// Only run when invoked as a script — guards against test-time imports
+// triggering stdin reads / spawnSync side effects.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
