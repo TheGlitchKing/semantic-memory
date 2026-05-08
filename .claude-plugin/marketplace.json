@@ -1,18 +1,18 @@
 {
-  "name": "semantic-sidekick-marketplace",
+  "name": "semantic-memory-marketplace",
   "owner": {
     "name": "TheGlitchKing",
     "email": "theglitchking@users.noreply.github.com"
   },
   "metadata": {
-    "description": "Single-plugin marketplace for semantic-sidekick — the activation + routing + capture layer on top of a markdown-vault MCP. Installable via /plugin marketplace add for direct-from-repo testing before central-marketplace registration.",
-    "version": "0.2.5"
+    "description": "Single-plugin marketplace for semantic-memory — the unified memory-layer plugin (rebrand of semantic-sidekick at v1.0.0). One MCP server, multiple typed corpora, unified cross-corpus knowledge graph, conditional tool registration, drift detection, and human↔code translation.",
+    "version": "1.0.0"
   },
   "plugins": [
     {
-      "name": "semantic-sidekick",
-      "description": "Activation + routing + capture layer on top of a markdown vault MCP. Hooks search on every prompt; skills route between vault-first / research / outage-silence modes; apply_patch / synthesize_note / ingest_source turn query-answers into durable artifacts with provenance. Turns a retrievable vault into a present knowledge prosthesis.",
-      "version": "0.2.5",
+      "name": "semantic-memory",
+      "description": "Unified memory-layer plugin for Claude Code. One MCP server, multiple typed corpora (vault / code / plans / docs / research / project-map), unified cross-corpus knowledge graph, conditional tool registration based on active corpora, in-process drift detection, and human↔code translation. Rebrand of semantic-sidekick at v1.0.0; existing semantic-sidekick plugins continue to work under the legacy name during the transition period.",
+      "version": "1.0.0",
       "author": {
         "name": "TheGlitchKing"
       },
@@ -22,8 +22,13 @@
       "keywords": [
         "mcp",
         "model-context-protocol",
+        "memory-layer",
         "semantic-search",
         "knowledge-graph",
+        "multi-corpus",
+        "code-search",
+        "drift-detection",
+        "translation",
         "markdown",
         "vault",
         "activation",
@@ -44,8 +49,12 @@
       "tags": [
         "claude-plugin",
         "mcp-server",
+        "memory-layer",
         "semantic-search",
         "knowledge-graph",
+        "multi-corpus",
+        "drift-detection",
+        "translation",
         "activation-hooks",
         "mode-routing",
         "provenance",
@@ -54,7 +63,7 @@
       ],
       "source": {
         "source": "npm",
-        "package": "@theglitchking/semantic-sidekick"
+        "package": "@theglitchking/semantic-memory"
       },
       "strict": true
     }

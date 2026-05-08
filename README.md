@@ -1,8 +1,13 @@
-# semantic-sidekick
+# semantic-memory (formerly semantic-sidekick)
 
 > A shelf is retrievable. A prosthesis is present.
+> A vault is local. Memory is layered.
 
-Activation, mode-routing, and capture layer built on top of [semantic-pages](https://github.com/TheGlitchKing/semantic-pages). semantic-pages gives you a searchable markdown vault. semantic-sidekick makes the vault *present* during work — auto-firing when relevant, staying silent when it would harm (outages), and forcing capture at mode transitions so 3-hour sessions produce durable artifacts instead of evaporating into chat history.
+> **v1.0.0 rebrand** — `semantic-sidekick` → `semantic-memory`. The npm package, plugin name, MCP server name, and marketplace identity all change. **Internal storage layout (`.semantic-sidekick-index/`, `~/.semantic-sidekick/models/`) is preserved** — existing installs continue to read their indices and model caches without re-indexing or re-downloading. See [CHANGELOG.md](./CHANGELOG.md) for the full migration. The `bin/semantic-sidekick` command remains as an alias for `bin/semantic-memory` during the transition.
+
+semantic-memory is the unified memory-layer plugin for Claude Code. **One MCP server, multiple typed corpora** (vault, code, plans, docs, research, project-map), a unified cross-corpus knowledge graph, conditional tool registration based on which corpora are active, in-process drift detection, and human↔code translation via the babel-fish glossary side-channel.
+
+The original semantic-sidekick framing — activation / mode-routing / capture layer on top of [semantic-pages](https://github.com/TheGlitchKing/semantic-pages) — is preserved as the `vault` corpus's behavior. What's new in 1.0.0 is the multi-corpus architecture that absorbs documentation, code, plans, research, and babel-fish project-maps into the same MCP surface.
 
 ## Status
 

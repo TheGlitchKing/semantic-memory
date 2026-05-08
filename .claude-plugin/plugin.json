@@ -1,7 +1,7 @@
 {
-  "name": "semantic-sidekick",
-  "description": "Activation + routing + capture layer on top of a markdown vault MCP. Turns a retrievable vault into a present one: hooks search on every prompt, skills route between vault-first / research / outage-silence modes, apply_patch + synthesize_note + ingest_source turn query-answers into durable artifacts with provenance.",
-  "version": "0.2.3",
+  "name": "semantic-memory",
+  "description": "Unified memory-layer plugin for Claude Code. One MCP server, multiple typed corpora (vault / code / plans / docs / research / project-map), unified cross-corpus knowledge graph, conditional tool registration, in-process drift detection, and human↔code translation. Rebrand of `semantic-sidekick` at v1.0.0 — see CHANGELOG for migration.",
+  "version": "1.0.0",
   "author": {
     "name": "TheGlitchKing",
     "email": "theglitchking@users.noreply.github.com"
@@ -11,10 +11,15 @@
   "repository": "https://github.com/TheGlitchKing/semantic-sidekick",
   "keywords": [
     "mcp",
+    "memory-layer",
     "semantic-search",
     "knowledge-graph",
+    "multi-corpus",
     "markdown",
     "vault",
+    "code-search",
+    "drift-detection",
+    "translation",
     "activation",
     "routing",
     "hooks",
