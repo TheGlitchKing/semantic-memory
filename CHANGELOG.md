@@ -2,6 +2,14 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.0.1] - 2026-05-08 — Republish (no functional changes)
+
+### Republish only
+
+`@theglitchking/semantic-memory@1.0.0` was published briefly then unpublished while the publish strategy was being reviewed. npm tombstones unpublished version slots, so the same version cannot be republished. This patch bumps to **1.0.1** with no functional changes — content is byte-identical to what 1.0.0 would have shipped.
+
+If you somehow have `@theglitchking/semantic-memory@1.0.0` installed (cached from the brief publish window), bump to `1.0.1` directly. No migration steps required between 1.0.0 and 1.0.1.
+
 ## [1.0.0] - 2026-05-07 — Rebrand to `semantic-memory`
 
 ### Renamed (publication identity)

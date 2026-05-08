@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Single-plugin marketplace for semantic-memory — the unified memory-layer plugin (rebrand of semantic-sidekick at v1.0.0). One MCP server, multiple typed corpora, unified cross-corpus knowledge graph, conditional tool registration, drift detection, and human↔code translation.",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
       "name": "semantic-memory",
       "description": "Unified memory-layer plugin for Claude Code. One MCP server, multiple typed corpora (vault / code / plans / docs / research / project-map), unified cross-corpus knowledge graph, conditional tool registration based on active corpora, in-process drift detection, and human↔code translation. Rebrand of semantic-sidekick at v1.0.0; existing semantic-sidekick plugins continue to work under the legacy name during the transition period.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "TheGlitchKing"
       },
