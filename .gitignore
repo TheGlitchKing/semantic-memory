@@ -27,6 +27,15 @@ skills/*-workspace/
 *.tgz
 .claude/.semantic-sidekick-update-cache.json
 
+# Other-plugin runtime caches (postinstall artifacts from any plugin)
+.claude/.*-update-cache.json
+
+# Sidekick mode tracker (machine-local)
+.claude/.sidekick-mode
+
+# Plugin runtime state file
+.claude/semantic-sidekick.json
+
 # Phase 1 activation hook runtime state
 .claude/.sidekick-fingerprints.json
 .claude/.sidekick-capture-pending.json
