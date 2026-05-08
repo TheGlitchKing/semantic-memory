@@ -283,14 +283,15 @@ function printToolDetail(name: string) {
 }
 
 program
-  .name("semantic-sidekick")
+  .name("semantic-memory")
   .description(
-    "Semantic search + knowledge graph MCP server for markdown files\n\n" +
-    "  Start MCP server:  semantic-sidekick --notes ./vault\n" +
-    "  Show vault stats:  semantic-sidekick --notes ./vault --stats\n" +
-    "  Force reindex:     semantic-sidekick --notes ./vault --reindex\n" +
-    "  List MCP tools:    semantic-sidekick tools\n" +
-    "  Tool details:      semantic-sidekick tools search_semantic"
+    "Unified memory-layer MCP server for Claude Code (rebrand of semantic-sidekick at v1.0.0).\n" +
+    "The `semantic-sidekick` command is preserved as an alias.\n\n" +
+    "  Start MCP server:  semantic-memory --notes ./vault\n" +
+    "  Show vault stats:  semantic-memory --notes ./vault --stats\n" +
+    "  Force reindex:     semantic-memory --notes ./vault --reindex\n" +
+    "  List MCP tools:    semantic-memory tools\n" +
+    "  Tool details:      semantic-memory tools search_semantic"
   )
   .version(version);
 
