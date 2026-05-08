@@ -1,0 +1,379 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Regression: MCP tool outputs (golden snapshots) > backlinks > returns notes linking TO project-overview 1`] = `
+[
+  {
+    "backlinkCount": 4,
+    "linkCount": 4,
+    "path": "api-gateway.md",
+    "tags": [
+      "architecture",
+      "api",
+      "gateway",
+    ],
+    "title": "API Gateway",
+  },
+  {
+    "backlinkCount": 2,
+    "linkCount": 1,
+    "path": "deployment-guide.md",
+    "tags": [
+      "devops",
+      "infrastructure",
+      "kubernetes",
+    ],
+    "title": "Deployment Guide",
+  },
+  {
+    "backlinkCount": 4,
+    "linkCount": 3,
+    "path": "event-driven.md",
+    "tags": [
+      "architecture",
+      "patterns",
+      "messaging",
+    ],
+    "title": "Event-Driven Architecture",
+  },
+  {
+    "backlinkCount": 0,
+    "linkCount": 4,
+    "path": "notes/meeting-2024-01-15.md",
+    "tags": [
+      "meeting",
+      "planning",
+      "q1-2024",
+    ],
+    "title": "Meeting Notes - Jan 15",
+  },
+  {
+    "backlinkCount": 4,
+    "linkCount": 3,
+    "path": "project-overview.md",
+    "tags": [
+      "project",
+      "overview",
+      "architecture",
+      "goals",
+    ],
+    "title": "Project Overview",
+  },
+  {
+    "backlinkCount": 2,
+    "linkCount": 1,
+    "path": "user-service.md",
+    "tags": [
+      "backend",
+      "service",
+      "auth",
+    ],
+    "title": "User Service",
+  },
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > forwardlinks > returns notes linked FROM project-overview 1`] = `
+[
+  {
+    "backlinkCount": 4,
+    "linkCount": 4,
+    "path": "api-gateway.md",
+    "tags": [
+      "architecture",
+      "api",
+      "gateway",
+    ],
+    "title": "API Gateway",
+  },
+  {
+    "backlinkCount": 4,
+    "linkCount": 3,
+    "path": "event-driven.md",
+    "tags": [
+      "architecture",
+      "patterns",
+      "messaging",
+    ],
+    "title": "Event-Driven Architecture",
+  },
+  {
+    "backlinkCount": 6,
+    "linkCount": 5,
+    "path": "microservices.md",
+    "tags": [
+      "architecture",
+      "backend",
+      "infrastructure",
+    ],
+    "title": "Microservices",
+  },
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > get_frontmatter > handles a note without frontmatter 1`] = `{}`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > get_frontmatter > returns parsed frontmatter for a known fixture 1`] = `
+{
+  "tags": [
+    "architecture",
+    "backend",
+  ],
+  "title": "Microservices",
+}
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > get_stats > returns vault stats with stable shape 1`] = `
+{
+  "embeddingDimensions": 384,
+  "embeddingModel": "sentence-transformers/all-MiniLM-L6-v2",
+  "embeddingRuntime": "native",
+  "graphEdges": 22,
+  "graphNodes": 10,
+  "hasLastIndexed": true,
+  "indexSize": 0,
+  "indexState": "ready",
+  "totalChunks": 10,
+  "totalEmbeddings": 10,
+  "totalNotes": 10,
+}
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > graph_path > returns 'No path found' for disconnected notes 1`] = `"No path found"`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > graph_path > returns a path between two known notes 1`] = `
+[
+  "project-overview.md",
+  "microservices.md",
+  "user-service.md",
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > graph_statistics > returns stable graph stats for the fixture vault 1`] = `
+{
+  "density": "number",
+  "mostConnected": "object",
+  "orphanCount": "number",
+  "totalEdges": "number",
+  "totalNodes": "number",
+}
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > lint_vault > returns a structured lint report 1`] = `
+{
+  "ruleNames": [
+    "broken_links",
+    "missing_provenance",
+    "schema_violations",
+    "stale",
+  ],
+  "topLevelKeys": [
+    "byRule",
+    "counts",
+    "findings",
+    "schemaPath",
+  ],
+}
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > list_notes > returns a stable listing for the fixture vault 1`] = `
+[
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "api-gateway.md",
+    "tags": [
+      "architecture",
+      "api",
+      "gateway",
+    ],
+    "title": "API Gateway",
+    "wikilinks": 4,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "deployment-guide.md",
+    "tags": [
+      "devops",
+      "infrastructure",
+      "kubernetes",
+    ],
+    "title": "Deployment Guide",
+    "wikilinks": 1,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "empty-note.md",
+    "tags": [],
+    "title": "empty-note",
+    "wikilinks": 0,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "event-driven.md",
+    "tags": [
+      "architecture",
+      "patterns",
+      "messaging",
+    ],
+    "title": "Event-Driven Architecture",
+    "wikilinks": 2,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "microservices.md",
+    "tags": [
+      "architecture",
+      "backend",
+      "infrastructure",
+    ],
+    "title": "Microservices",
+    "wikilinks": 5,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "no-frontmatter.md",
+    "tags": [
+      "simple-tag",
+    ],
+    "title": "Simple Note",
+    "wikilinks": 1,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "notes/meeting-2024-01-15.md",
+    "tags": [
+      "meeting",
+      "planning",
+      "q1-2024",
+    ],
+    "title": "Meeting Notes - Jan 15",
+    "wikilinks": 4,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "orphan.md",
+    "tags": [
+      "standalone",
+      "orphan",
+    ],
+    "title": "Orphan Note",
+    "wikilinks": 0,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "project-overview.md",
+    "tags": [
+      "project",
+      "overview",
+      "architecture",
+      "goals",
+    ],
+    "title": "Project Overview",
+    "wikilinks": 3,
+  },
+  {
+    "chunks": 1,
+    "hasMtime": true,
+    "path": "user-service.md",
+    "tags": [
+      "backend",
+      "service",
+      "auth",
+    ],
+    "title": "User Service",
+    "wikilinks": 1,
+  },
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > read_multiple_notes > returns map of paths to content for batch read 1`] = `
+[
+  "microservices.md",
+  "project-overview.md",
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > read_note > returns full note content for a known fixture 1`] = `
+"---
+title: Project Overview
+tags:
+  - project
+  - overview
+---
+
+# Project Overview
+
+This is the main project document. It describes the architecture and goals.
+
+## Architecture
+
+The system uses a [[microservices]] approach with [[event-driven]] communication.
+See [[api-gateway]] for the entry point.
+
+## Goals
+
+1. Build a scalable platform
+2. Support real-time updates
+3. Maintain high availability
+
+#architecture #goals
+"
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > search_graph > returns graph-connected results for a known concept 1`] = `
+[
+  "backlinkCount",
+  "linkCount",
+  "path",
+  "tags",
+  "title",
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > search_hybrid > returns results with stable structural shape 1`] = `
+[
+  "matchedChunk",
+  "mtime",
+  "path",
+  "score",
+  "snippet",
+  "title",
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > search_semantic > returns results with stable structural shape 1`] = `
+[
+  "matchedChunk",
+  "mtime",
+  "path",
+  "score",
+  "snippet",
+  "title",
+]
+`;
+
+exports[`Regression: MCP tool outputs (golden snapshots) > search_text > returns deterministic results for an exact-match keyword 1`] = `
+[
+  {
+    "hasMtime": true,
+    "hasScore": true,
+    "path": "event-driven.md",
+    "snippet": "...r — a service that listens for events
+- Event Bus — the transport layer (we use RabbitMQ)
+
+See [[microservices]] for how services use events.
+See [[project-overview]] for the big picture.
+
+#patterns #...",
+    "title": "Event-Driven Architecture",
+  },
+]
+`;
