@@ -1,6 +1,74 @@
 # Changelog
 
-All notable changes to semantic-sidekick will be documented here.
+All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
+
+## [1.0.0] - 2026-05-07 — Rebrand to `semantic-memory`
+
+### Renamed (publication identity)
+
+- **npm package**: `@theglitchking/semantic-sidekick` → `@theglitchking/semantic-memory`
+- **Claude Code plugin name**: `semantic-sidekick` → `semantic-memory`
+- **Marketplace name**: `semantic-sidekick-marketplace` → `semantic-memory-marketplace`
+- **MCP server name**: `semantic-sidekick` → `semantic-memory` (announced in initialize handshake)
+- **CLI binary**: `bin/semantic-memory` is the new primary; `bin/semantic-sidekick` is preserved as an alias during the transition
+
+### Why
+
+`semantic-sidekick` framed the plugin as a "vault helper" because that's what it was at v0.x. v1.0.0 introduces a multi-corpus architecture: vault, code, plans, docs, research, project-map. The plugin is no longer a sidekick — it's the unified memory layer for Claude Code. The new name reflects the actual scope.
+
+### Preserved (no migration required for existing installs)
+
+- **Internal storage layout** is unchanged: `<project>/.semantic-sidekick-index/` continues to be the index directory, `~/.semantic-sidekick/models/` continues to be the model cache. Existing users do NOT need to re-index or re-download models when they upgrade.
+- **All 33 existing MCP tools** remain registered under the same names with the same input schemas and the same output structures. The regression-snapshot suite (`test/regression/`) gates this guarantee — every tool's surface is bit-for-bit preserved.
+- **The `--read-only` mode** continues to suppress the same 12 write tools (21-tool surface).
+- **All existing slash commands, hooks, skills, and capture flow** are unchanged.
+- **`bin/semantic-sidekick` shell command** continues to work as an alias for `bin/semantic-memory`.
+- **Configuration files** (`.claude/semantic-sidekick.json`, `.claude/.semantic-sidekick-update-cache.json`) keep their names. The claude-plugin-runtime `pluginName: "semantic-sidekick"` is preserved so update tracking continues without state loss.
+
+### Phase 2.0.0a (this release) — what shipped
+
+This is the **mechanical rebrand** portion of Phase 2.0.0 of the unified memory-layer plan tracked in `~/workspace/the-glitch-kingdom/persistent-planning/.planning/layered-planning-with-mcp-and-hewtd-frontmatter/task_plan.md`. It includes:
+
+- All publication-identity renames listed above
+- Preview docs for the planned multi-corpus architecture (`docs/corpora-json.md`, `docs/smart-middle-activation.md`)
+- README rebrand framing
+- Bin alias for `semantic-memory`
+
+### Phase 2.0.0b (next release) — what's coming
+
+The actual multi-corpus refactor — registry-driven indexer, per-corpus search verbs (`search_vault`, `search_code`, ...), `search_all` cross-corpus verb, smart-middle first-run detection, `corpora.json` schema implementation — ships in a follow-up PR. Until that lands, semantic-memory's runtime behavior is identical to semantic-sidekick 0.2.5.
+
+### Migration for existing users
+
+```bash
+# Uninstall the old plugin
+/plugin uninstall semantic-sidekick
+
+# Install the new one (same marketplace repo, new plugin name)
+/plugin marketplace add https://github.com/TheGlitchKing/semantic-sidekick
+/plugin install semantic-memory@semantic-memory-marketplace
+```
+
+Or for npm/global installs:
+
+```bash
+npm uninstall -g @theglitchking/semantic-sidekick
+npm install -g @theglitchking/semantic-memory
+```
+
+Or as a project devDependency:
+
+```bash
+npm uninstall @theglitchking/semantic-sidekick
+npm install --save-dev @theglitchking/semantic-memory
+```
+
+Existing on-disk state (the index, model cache, hooks, skills, slash commands) requires no changes. The new package reads from the same paths as the old one.
+
+### Inter-PR dependencies (this release)
+
+- Hard-depends on: nothing (the regression-snapshot baseline already lives on main and gates this release)
+- Soft-coupled with: hit-em-with-the-docs#3 (HEWTD 2.2.0 — `tier: "plan"` schema extension); persistent-planning#1 (3.0.0 lg-mode). Neither blocks this release; both ship coordinated for a coherent ecosystem-wide v1.0 launch.
 
 ## [0.2.5] - 2026-04-28
 

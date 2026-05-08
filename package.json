@@ -1,7 +1,7 @@
 {
-  "name": "@theglitchking/semantic-sidekick",
-  "version": "0.2.5",
-  "description": "Activation, mode-routing, and capture layer on top of semantic-pages. Turns a retrievable markdown vault into a present one — auto-fires during work, matches the situation (research vs code vs outage), and forces capture at transitions.",
+  "name": "@theglitchking/semantic-memory",
+  "version": "1.0.0",
+  "description": "Unified memory-layer plugin for Claude Code. One MCP server, multiple typed corpora (vault, code, plans, docs, research, project-map), unified cross-corpus knowledge graph, conditional tool registration, in-process drift detection, and human↔code translation. Rebrand of @theglitchking/semantic-sidekick at v1.0 — see CHANGELOG for migration.",
   "type": "module",
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -10,6 +10,7 @@
     "./mcp": "./dist/mcp/server.js"
   },
   "bin": {
+    "semantic-memory": "bin/semantic-memory",
     "semantic-sidekick": "bin/semantic-sidekick"
   },
   "files": [
@@ -18,6 +19,7 @@
     ".claude-plugin",
     "hooks",
     "commands",
+    "docs",
     "scripts/link-skills.js",
     "scripts/pre-commit-lint.sh",
     "skills/semantic-first",
@@ -25,6 +27,7 @@
     "skills/research-mode",
     "skills/outage-silence",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -39,8 +42,10 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "memory-layer",
     "semantic-search",
     "knowledge-graph",
+    "multi-corpus",
     "markdown",
     "obsidian",
     "vector-search",
@@ -50,7 +55,10 @@
     "llm",
     "ai",
     "notes",
-    "vault"
+    "vault",
+    "code-search",
+    "drift-detection",
+    "translation"
   ],
   "license": "MIT",
   "engines": {

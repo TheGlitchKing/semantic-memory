@@ -289,8 +289,8 @@ export async function createServer(notesPath: string, options: ServerOptions = {
 
   // MCP Server
   const server = new McpServer({
-    name: "semantic-sidekick",
-    version: "0.2.0",
+    name: "semantic-memory",
+    version: "1.0.0",
   });
 
   // --- Search tools ---
