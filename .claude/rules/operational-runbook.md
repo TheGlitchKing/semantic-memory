@@ -43,6 +43,76 @@ Before running `npm publish` (or bumping the version):
    rm -rf ~/.npm/_npx/*/node_modules/@theglitchking
    ```
 
+### Offline / air-gapped tarball
+
+Self-contained `.tgz` for installs on RHEL 9 / RHEL 10 / Ubuntu 24.04 (x86_64) with
+no npm, no Hugging Face, and no GitHub access. The tarball bundles the plugin, vendored
+`node_modules`, the embedding model + tokenizer cache, and a self-bundled installer.
+
+**Build (on a connected host running Ubuntu 24.04 + Node 22):**
+
+```bash
+./scripts/build-offline-tarball.sh
+# → ~/.semantic-sidekick/dist-offline/semantic-sidekick-offline-<version>-<sha>-x64.tgz
+```
+
+Build flags:
+- `--force` — rebuild even if a tarball with the same name exists
+- `--allow-dirty` — build with uncommitted git changes (manifest gitSha will reflect HEAD)
+- `--out DIR` — override output directory
+- `--skip-model` / `--skip-npm` / `--skip-build` — fast iteration on script changes
+
+The build refuses by default if the working tree is dirty — the manifest's gitSha must mean something.
+
+**Install (on the air-gapped target):**
+
+```bash
+tar -xzf semantic-sidekick-offline-<version>-<sha>-x64.tgz
+cd semantic-sidekick-offline-<version>-<sha>-x64
+./install-offline.sh
+```
+
+Defaults:
+- Plugin lands at `~/.semantic-sidekick/plugin/`
+- Model cache at `~/.semantic-sidekick/models/`
+- HF_HUB_OFFLINE export written to `~/.semantic-sidekick/env.sh` — operator sources it themselves
+  (or pass `--persist-rc` to append a sourcing line to `~/.bashrc`)
+
+Install flags:
+- `--force` — reinstall same version (no-op otherwise)
+- `--force-overwrite-local-edits` — proceed even if existing install has hand-edits
+- `--persist-rc` — append `source` line to `~/.bashrc`
+- `--prefix DIR` — install root override (testing)
+- `--dry-run` — print what would happen, no changes
+- `--rollback` — swap `.previous/` back into place
+- `--status` — print installed state, no side effects
+- `--verify` — exit non-zero if installed state has drifted
+
+**Update flow (every release):**
+
+1. Bump version, commit, build:
+   ```bash
+   ./scripts/build-offline-tarball.sh
+   ```
+2. Transport new tarball to target.
+3. On target, extract and run `./install-offline.sh`. Behavior:
+   - Same version already installed → no-op
+   - Different version → atomic swap; previous version preserved at `.previous/`
+   - Drift on existing install → refused unless `--force-overwrite-local-edits`
+
+**Rollback** is a single command at the target: `./install-offline.sh --rollback`.
+
+**Drift detection surfaces:**
+- Tarball corruption (transport): caught at install time via tarball-level `MANIFEST.json` sha256 verify
+- Destination hand-edits: caught pre-swap via plugin-level `MANIFEST.json` sha256 verify
+- Post-install integrity: `./install-offline.sh --verify` (cron-friendly, exits non-zero on mismatch)
+
+Glibc baseline confirmed safe for the entire fleet:
+- Highest GLIBC symbol required by any native binding is 2.29 (`hnswlib-node`)
+- RHEL 9 has 2.34, RHEL 10 / Ubuntu 24.04 have 2.39 — all well above the requirement
+
+See `.planning/offline-packaging/` for the full design doc and diagnostic notes.
+
 ## Key Commands
 
 | Command | What It Does |
