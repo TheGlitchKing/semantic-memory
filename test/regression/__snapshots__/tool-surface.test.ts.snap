@@ -1,0 +1,1024 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Regression: MCP tool surface (golden snapshots) > matches the golden tool-name list (compact) 1`] = `
+[
+  "apply_patch",
+  "backlinks",
+  "create_note",
+  "delete_note",
+  "find_broken_links",
+  "find_missing_provenance",
+  "find_schema_violations",
+  "find_stale",
+  "forwardlinks",
+  "get_frontmatter",
+  "get_stats",
+  "graph_path",
+  "graph_statistics",
+  "ingest_source",
+  "install_schema",
+  "lint_vault",
+  "list_notes",
+  "log_event",
+  "log_query",
+  "manage_tags",
+  "move_note",
+  "read_multiple_notes",
+  "read_note",
+  "regenerate_index",
+  "reindex",
+  "rename_tag",
+  "search_graph",
+  "search_hybrid",
+  "search_semantic",
+  "search_text",
+  "synthesize_note",
+  "update_frontmatter",
+  "update_note",
+]
+`;
+
+exports[`Regression: MCP tool surface (golden snapshots) > matches the golden tool-surface snapshot 1`] = `
+[
+  {
+    "description": "Atomic multi-note patch with rollback — apply a ChangeSet of creates/updates/deletes/moves. If any op fails, earlier ops are reverted. In dry-run, nothing is written; result describes the proposed state + schema findings.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "allow_lint_warnings": {
+          "default": true,
+          "type": "boolean",
+        },
+        "creates": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string",
+              },
+              "frontmatter": {
+                "additionalProperties": {},
+                "type": "object",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "path",
+              "content",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "deletes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "path",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "dry_run": {
+          "default": false,
+          "type": "boolean",
+        },
+        "moves": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string",
+              },
+              "to": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "from",
+              "to",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "updates": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string",
+              },
+              "heading": {
+                "type": "string",
+              },
+              "mode": {
+                "enum": [
+                  "overwrite",
+                  "append",
+                  "prepend",
+                  "patch-by-heading",
+                ],
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "path",
+              "content",
+              "mode",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "validate": {
+          "default": true,
+          "type": "boolean",
+        },
+      },
+      "type": "object",
+    },
+    "name": "apply_patch",
+  },
+  {
+    "description": "Find all notes that link TO a given note",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 50,
+          "type": "number",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "backlinks",
+  },
+  {
+    "description": "Create a new markdown note",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string",
+        },
+        "frontmatter": {
+          "additionalProperties": {},
+          "type": "object",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+        "content",
+      ],
+      "type": "object",
+    },
+    "name": "create_note",
+  },
+  {
+    "description": "Delete a note permanently",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "default": false,
+          "type": "boolean",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "delete_note",
+  },
+  {
+    "description": "Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "pathGlob": {
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "find_broken_links",
+  },
+  {
+    "description": "Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "pathGlob": {
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "find_missing_provenance",
+  },
+  {
+    "description": "Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "pathGlob": {
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "find_schema_violations",
+  },
+  {
+    "description": "Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "pathGlob": {
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "find_stale",
+  },
+  {
+    "description": "Find all notes linked FROM a given note",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 50,
+          "type": "number",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "forwardlinks",
+  },
+  {
+    "description": "Read parsed YAML frontmatter from a note as JSON",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "get_frontmatter",
+  },
+  {
+    "description": "Vault and index statistics — note count, chunks, embeddings, graph density",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "get_stats",
+  },
+  {
+    "description": "Find the shortest path between two notes in the knowledge graph",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+        },
+        "to": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "from",
+        "to",
+      ],
+      "type": "object",
+    },
+    "name": "graph_path",
+  },
+  {
+    "description": "Knowledge graph stats — most connected nodes, orphans, density",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "graph_statistics",
+  },
+  {
+    "description": "Build + apply a ChangeSet that ingests a source (paper, doc, URL) and the notes extracted from it. Produces one sources/<slug>.md note (type=source) plus one create per extracted unit, each stamped with derived_from pointing at the source. Routes through apply_patch — atomic, validated, rollback-capable, dry-run supported.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "auto_apply": {
+          "default": true,
+          "description": "If false, force dry-run regardless of dry_run flag — use for review-first workflows",
+          "type": "boolean",
+        },
+        "dry_run": {
+          "default": false,
+          "type": "boolean",
+        },
+        "source": {
+          "additionalProperties": false,
+          "properties": {
+            "source_path": {
+              "type": "string",
+            },
+            "source_summary": {
+              "type": "string",
+            },
+            "source_tags": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "source_title": {
+              "type": "string",
+            },
+            "source_type": {
+              "type": "string",
+            },
+            "source_uri": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "source_uri",
+            "source_title",
+          ],
+          "type": "object",
+        },
+        "units": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "type": "string",
+              },
+              "content": {
+                "type": "string",
+              },
+              "extra_derived_from": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "extra_frontmatter": {
+                "additionalProperties": {},
+                "type": "object",
+              },
+              "path": {
+                "type": "string",
+              },
+              "title": {
+                "type": "string",
+              },
+              "type": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "path",
+              "content",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "source",
+        "units",
+      ],
+      "type": "object",
+    },
+    "name": "ingest_source",
+  },
+  {
+    "description": "Bootstrap vault.schema.yml in the vault root with the default schema (note/decision/gotcha/source types + provenance fields). Skipped if present unless force=true.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "force": {
+          "default": false,
+          "type": "boolean",
+        },
+      },
+      "type": "object",
+    },
+    "name": "install_schema",
+  },
+  {
+    "description": "Run all lint rules at once — returns full LintReport with findings grouped by rule.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "pathGlob": {
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "lint_vault",
+  },
+  {
+    "description": "List all indexed notes with metadata (title, tags, timestamps, link count). Supports filtering by date, status, tier, and domain.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "description": "Filter by frontmatter domain (e.g. 'api', 'security')",
+          "type": "string",
+        },
+        "modifiedAfter": {
+          "description": "ISO date — only return notes modified after this date (e.g. '2026-01-01')",
+          "type": "string",
+        },
+        "modifiedBefore": {
+          "description": "ISO date — only return notes modified before this date",
+          "type": "string",
+        },
+        "status": {
+          "description": "Filter by frontmatter status (e.g. 'active', 'deprecated')",
+          "type": "string",
+        },
+        "tier": {
+          "description": "Filter by frontmatter tier (e.g. 'guide', 'reference')",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_notes",
+  },
+  {
+    "description": "Append a structured event to the vault's log.md. Each entry renders as a human line + a machine-readable YAML block for later querying.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Category: ingest, synthesis, decision, incident, etc.",
+          "type": "string",
+        },
+        "payload": {
+          "additionalProperties": {},
+          "description": "Arbitrary structured data",
+          "type": "object",
+        },
+        "summary": {
+          "description": "One-line human summary",
+          "type": "string",
+        },
+      },
+      "required": [
+        "kind",
+        "summary",
+      ],
+      "type": "object",
+    },
+    "name": "log_event",
+  },
+  {
+    "description": "Read structured log entries filtered by kind and/or date range. Returns parsed entries from log.md.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "ISO timestamp (inclusive)",
+          "type": "string",
+        },
+        "before": {
+          "description": "ISO timestamp (inclusive)",
+          "type": "string",
+        },
+        "kind": {
+          "type": "string",
+        },
+        "limit": {
+          "type": "number",
+        },
+      },
+      "type": "object",
+    },
+    "name": "log_query",
+  },
+  {
+    "description": "Add, remove, or list tags on a note (frontmatter and inline)",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "add",
+            "remove",
+            "list",
+          ],
+          "type": "string",
+        },
+        "path": {
+          "type": "string",
+        },
+        "tags": {
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "path",
+        "action",
+      ],
+      "type": "object",
+    },
+    "name": "manage_tags",
+  },
+  {
+    "description": "Move or rename a note — updates wikilinks across the vault",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+        },
+        "to": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "from",
+        "to",
+      ],
+      "type": "object",
+    },
+    "name": "move_note",
+  },
+  {
+    "description": "Batch read multiple notes in one call",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "paths",
+      ],
+      "type": "object",
+    },
+    "name": "read_multiple_notes",
+  },
+  {
+    "description": "Read the full content of a specific note by path",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "read_note",
+  },
+  {
+    "description": "Force regeneration of INDEX.md for one directory (or all affected by a list of paths). Idempotent — skips write if unchanged.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "description": "Directory path relative to vault root (mutually exclusive with 'paths')",
+          "type": "string",
+        },
+        "paths": {
+          "description": "Files to infer affected directories from",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "type": "object",
+    },
+    "name": "regenerate_index",
+  },
+  {
+    "description": "Force a full reindex of the vault",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "reindex",
+  },
+  {
+    "description": "Rename a tag across all notes in the vault",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "newTag": {
+          "type": "string",
+        },
+        "oldTag": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "oldTag",
+        "newTag",
+      ],
+      "type": "object",
+    },
+    "name": "rename_tag",
+  },
+  {
+    "description": "Graph traversal — find notes connected to a concept via wikilinks, related_docs, and specific tags. Results ranked by directness, load_priority, and degree.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "concept": {
+          "type": "string",
+        },
+        "limit": {
+          "default": 20,
+          "type": "number",
+        },
+        "maxDepth": {
+          "default": 2,
+          "type": "number",
+        },
+      },
+      "required": [
+        "concept",
+      ],
+      "type": "object",
+    },
+    "name": "search_graph",
+  },
+  {
+    "description": "Combined semantic + graph search — vector results re-ranked by graph proximity and load_priority",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "description": "Filter by frontmatter domain",
+          "type": "string",
+        },
+        "limit": {
+          "default": 10,
+          "type": "number",
+        },
+        "modifiedAfter": {
+          "description": "ISO date — only return notes modified after this date",
+          "type": "string",
+        },
+        "modifiedBefore": {
+          "description": "ISO date — only return notes modified before this date",
+          "type": "string",
+        },
+        "query": {
+          "type": "string",
+        },
+        "status": {
+          "description": "Filter by frontmatter status",
+          "type": "string",
+        },
+        "tier": {
+          "description": "Filter by frontmatter tier",
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "search_hybrid",
+  },
+  {
+    "description": "Vector similarity search — find notes similar to a query by meaning. Scores are boosted by load_priority when present.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "description": "Filter by frontmatter domain (e.g. 'api', 'security')",
+          "type": "string",
+        },
+        "limit": {
+          "default": 10,
+          "type": "number",
+        },
+        "modifiedAfter": {
+          "description": "ISO date — only return notes modified after this date (e.g. '2026-01-01')",
+          "type": "string",
+        },
+        "modifiedBefore": {
+          "description": "ISO date — only return notes modified before this date",
+          "type": "string",
+        },
+        "query": {
+          "type": "string",
+        },
+        "status": {
+          "description": "Filter by frontmatter status (e.g. 'active', 'draft')",
+          "type": "string",
+        },
+        "tier": {
+          "description": "Filter by frontmatter tier (e.g. 'guide', 'reference')",
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "search_semantic",
+  },
+  {
+    "description": "Full-text keyword or regex search across all notes with optional filters",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "caseSensitive": {
+          "default": false,
+          "type": "boolean",
+        },
+        "domain": {
+          "description": "Filter by frontmatter domain",
+          "type": "string",
+        },
+        "limit": {
+          "default": 20,
+          "type": "number",
+        },
+        "modifiedAfter": {
+          "description": "ISO date — only return notes modified after this date",
+          "type": "string",
+        },
+        "modifiedBefore": {
+          "description": "ISO date — only return notes modified before this date",
+          "type": "string",
+        },
+        "pathGlob": {
+          "type": "string",
+        },
+        "pattern": {
+          "type": "string",
+        },
+        "regex": {
+          "default": false,
+          "type": "boolean",
+        },
+        "status": {
+          "description": "Filter by frontmatter status",
+          "type": "string",
+        },
+        "tagFilter": {
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "tier": {
+          "description": "Filter by frontmatter tier",
+          "type": "string",
+        },
+      },
+      "required": [
+        "pattern",
+      ],
+      "type": "object",
+    },
+    "name": "search_text",
+  },
+  {
+    "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "type": "string",
+        },
+        "confidence": {
+          "default": "medium",
+          "type": "string",
+        },
+        "decided_on": {
+          "type": "string",
+        },
+        "decision_maker": {
+          "type": "string",
+        },
+        "derived_from": {
+          "description": "Wikilinks to other vault notes — populate provenance.derived_from",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "dry_run": {
+          "default": false,
+          "type": "boolean",
+        },
+        "related_notes": {
+          "description": "Note names or paths to auto-link in the body + list under Related",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "severity": {
+          "type": "string",
+        },
+        "sources": {
+          "description": "External URLs or paths — populate provenance.sources",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "status": {
+          "default": "active",
+          "type": "string",
+        },
+        "suggested_path": {
+          "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'",
+          "type": "string",
+        },
+        "topic": {
+          "type": "string",
+        },
+        "type": {
+          "default": "note",
+          "description": "One of the schema types: note, decision, gotcha, source",
+          "type": "string",
+        },
+      },
+      "required": [
+        "topic",
+        "answer",
+        "suggested_path",
+      ],
+      "type": "object",
+    },
+    "name": "synthesize_note",
+  },
+  {
+    "description": "Set or delete YAML frontmatter keys — pass null to delete a key",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "additionalProperties": {},
+          "type": "object",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+        "fields",
+      ],
+      "type": "object",
+    },
+    "name": "update_frontmatter",
+  },
+  {
+    "description": "Edit note content — overwrite, append, prepend, or patch by heading",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string",
+        },
+        "heading": {
+          "type": "string",
+        },
+        "mode": {
+          "enum": [
+            "overwrite",
+            "append",
+            "prepend",
+            "patch-by-heading",
+          ],
+          "type": "string",
+        },
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+        "content",
+        "mode",
+      ],
+      "type": "object",
+    },
+    "name": "update_note",
+  },
+]
+`;
+
+exports[`Regression: MCP tool surface in --read-only mode > matches the golden tool-name list in read-only mode 1`] = `
+[
+  "backlinks",
+  "find_broken_links",
+  "find_missing_provenance",
+  "find_schema_violations",
+  "find_stale",
+  "forwardlinks",
+  "get_frontmatter",
+  "get_stats",
+  "graph_path",
+  "graph_statistics",
+  "lint_vault",
+  "list_notes",
+  "log_event",
+  "log_query",
+  "read_multiple_notes",
+  "read_note",
+  "reindex",
+  "search_graph",
+  "search_hybrid",
+  "search_semantic",
+  "search_text",
+]
+`;
