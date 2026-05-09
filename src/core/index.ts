@@ -18,6 +18,13 @@ export { buildSynthesizeChangeSet } from "./synthesize.js";
 export type { SynthesizeNoteInput } from "./synthesize.js";
 export { lintVault, formatLintReport } from "./lint.js";
 export type { LintReport } from "./lint.js";
+export { regenerateAgentsContract, inspectAgentsContract } from "./agents-contract.js";
+export type {
+  ToolSummary,
+  ModeSummary,
+  RegenerateContractOptions,
+  RegenerateContractResult,
+} from "./agents-contract.js";
 export { loadSchema, validateNote, installDefaultSchema } from "./schema.js";
 export type { VaultSchema, LintFinding, Severity } from "./schema.js";
 

@@ -16,6 +16,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "graph_path",
   "graph_statistics",
   "ingest_source",
+  "inspect_contract",
   "install_schema",
   "lint_vault",
   "list_notes",
@@ -25,6 +26,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "move_note",
   "read_multiple_notes",
   "read_note",
+  "regenerate_contract",
   "regenerate_index",
   "reindex",
   "rename_tag",
@@ -446,6 +448,21 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "ingest_source",
   },
   {
+    "description": "Read-only inspection of AGENTS.md state — whether it exists, whether the managed-block markers are present, and how much Local Notes content is preserved.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "projectRoot": {
+          "description": "Override the project root path. Defaults to the parent of the vault directory if not provided.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "inspect_contract",
+  },
+  {
     "description": "Bootstrap vault.schema.yml in the vault root with the default schema (note/decision/gotcha/source types + provenance fields). Skipped if present unless force=true.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -669,6 +686,26 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "read_note",
+  },
+  {
+    "description": "Generate or refresh AGENTS.md at the project root with a managed-block contract. Preserves the 'Local Notes' tail across regenerations. Refuses to overwrite hand-edits inside the managed block unless force=true. Returns the path written and whether hand-edits were detected.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "force": {
+          "default": false,
+          "description": "Overwrite hand-edited managed-block content.",
+          "type": "boolean",
+        },
+        "projectRoot": {
+          "description": "Override the project root path. Defaults to the parent of the vault directory if not provided.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "regenerate_contract",
   },
   {
     "description": "Force regeneration of INDEX.md for one directory (or all affected by a list of paths). Idempotent — skips write if unchanged.",

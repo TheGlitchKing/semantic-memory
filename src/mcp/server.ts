@@ -11,6 +11,7 @@ import { registerLogTools } from "./tools/log.js";
 import { registerMetadataTools } from "./tools/metadata.js";
 import { registerGraphTools } from "./tools/graph.js";
 import { registerSystemTools } from "./tools/system.js";
+import { registerContractTools } from "./tools/contract.js";
 
 export type { ServerOptions } from "./context.js";
 
@@ -31,6 +32,7 @@ export async function createServer(notesPath: string, options: ServerOptions = {
   registerMetadataTools(server, ctx);
   registerGraphTools(server, ctx);
   registerSystemTools(server, ctx);
+  registerContractTools(server, ctx);
 
   if (options.waitForReady) {
     await ctx.tryLoadCachedIndex();

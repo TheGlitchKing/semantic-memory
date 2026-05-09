@@ -1,5 +1,9 @@
 # Project Instructions
 
+> **Primary contract: [`/AGENTS.md`](../AGENTS.md)** — generated and refreshed by `regenerate_contract`. Read that file first; it lists active modes, the required workflow, and the live tool surface.
+>
+> This file augments AGENTS.md with repo-specific rules that are not part of the generic contract — vault-first behavior, mode routing details, and pointers to project tooling.
+
 ## Overview
 <!-- Describe the project, its purpose, and primary goals -->
 
