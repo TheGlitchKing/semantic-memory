@@ -10,7 +10,7 @@ When the user runs `/healthcheck`:
 
 The fast-tier auto-check also runs on every `SessionStart` via `vault-context.js` — healthy installs see nothing at session start, drifted installs see a one-block warning with a pointer to this command.
 
-Implementation: shell out to `node ./node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick healthcheck [--fast]` (or `npx --no @theglitchking/semantic-sidekick healthcheck [--fast]` if no local install).
+Implementation: shell out to `node ./node_modules/@theglitchking/semantic-memory/bin/semantic-memory healthcheck [--fast]` (or `npx --no @theglitchking/semantic-memory healthcheck [--fast]` if no local install). Falls back to the legacy `@theglitchking/semantic-sidekick` package on machines mid-migration.
 
 Drift findings are categorized by check:
 - `mcp_json_entry` — `.mcp.json` missing the semantic-memory server entry. Fix: `/normalize-config`.

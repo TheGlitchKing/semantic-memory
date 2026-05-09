@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// semantic-sidekick SessionStart hook.
+// semantic-memory SessionStart hook.
 //
 // Critical path (zero external deps): run reconcile.js to wire .mcp.json +
 // create .claude/.vault. This ALWAYS runs, even if the plugin is installed
@@ -32,7 +32,7 @@ async function main() {
   try {
     await reconcile(projectRoot);
   } catch (err) {
-    process.stderr.write(`[semantic-sidekick] reconcile failed: ${err?.message || err}\n`);
+    process.stderr.write(`[semantic-memory] reconcile failed: ${err?.message || err}\n`);
   }
 
   // 2. Optional runtime-backed update check. Skip silently if the runtime
@@ -45,9 +45,9 @@ async function main() {
       // that's idempotent (reconcile writes only what's missing), so the
       // double-invocation is harmless. We return early to avoid double-emit.
       await mod.runSessionStart({
-        packageName: "@theglitchking/semantic-sidekick",
-        pluginName: "semantic-sidekick",
-        configFile: "semantic-sidekick.json",
+        packageName: "@theglitchking/semantic-memory",
+        pluginName: "semantic-memory",
+        configFile: "semantic-memory.json",
         reconcile,
       });
       return;
@@ -57,7 +57,7 @@ async function main() {
     // resolvable. Any other error gets logged but doesn't block the session.
     const msg = String(err?.message || err);
     if (!msg.includes("Cannot find package") && !msg.includes("ERR_MODULE_NOT_FOUND")) {
-      process.stderr.write(`[semantic-sidekick] runtime import failed: ${msg}\n`);
+      process.stderr.write(`[semantic-memory] runtime import failed: ${msg}\n`);
     }
   }
 
@@ -75,7 +75,7 @@ function emit(additionalContext) {
 }
 
 main().catch((err) => {
-  process.stderr.write(`[semantic-sidekick] session-start.js fatal: ${err?.message || err}\n`);
+  process.stderr.write(`[semantic-memory] session-start.js fatal: ${err?.message || err}\n`);
   // Still emit — never block the session.
   emit();
 });

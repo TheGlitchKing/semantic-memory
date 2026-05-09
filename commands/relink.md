@@ -3,4 +3,4 @@ description: Re-run the skill linker — refresh symlinks from node_modules into
 allowed-tools: Bash(npx:*)
 ---
 
-Run `npx --no @theglitchking/semantic-sidekick relink` and report the result.
+Run `npx --no @theglitchking/semantic-memory relink` and report the result.

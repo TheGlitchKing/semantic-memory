@@ -12,14 +12,14 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 try {
   runPostinstall({
-    packageName: "@theglitchking/semantic-sidekick",
-    pluginName: "semantic-sidekick",
-    configFile: "semantic-sidekick.json",
+    packageName: "@theglitchking/semantic-memory",
+    pluginName: "semantic-memory",
+    configFile: "semantic-memory.json",
     skillsDir: "skills",
     packageRoot,
     hookCommand:
-      "node ./node_modules/@theglitchking/semantic-sidekick/hooks/session-start.js",
+      "node ./node_modules/@theglitchking/semantic-memory/hooks/session-start.js",
   });
 } catch (err) {
-  console.warn(`[semantic-sidekick] postinstall failed: ${err?.message || err}`);
+  console.warn(`[semantic-memory] postinstall failed: ${err?.message || err}`);
 }
