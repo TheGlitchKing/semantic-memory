@@ -2,6 +2,14 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.1.2] - 2026-05-09 — Add ROADMAP.md (docs-only)
+
+Adds a public-facing `ROADMAP.md` at the repo root tracking the committed near-term direction. Captures v1.2 (state consolidation, `/healthcheck --fix`, fresh-install CI smoke, code-symbol drift), v1.3 (confidence-decay), and v2.0 (close the migration window — remove deprecation shims, move the vector index out of the vault, drop legacy fallbacks). Also documents what's deferred and what we've actively decided NOT to ship.
+
+`ROADMAP.md` is now in the published npm tarball alongside `README.md` and `CHANGELOG.md`. No code changes; pure documentation.
+
+The detailed per-version task plans live under `.planning/v1*-*` (gitignored runtime state); ROADMAP.md is the durable summary.
+
 ## [1.1.1] - 2026-05-08 — Hotfix: complete the rebrand wiring
 
 v1.1.0 published with the rebrand-to-`semantic-memory` half-finished: the npm package, marketplace entry, and tool surface all moved to the new name, but the postinstall, SessionStart reconcile, slash commands, and CLI helpers were still hardcoded to the legacy `@theglitchking/semantic-sidekick` package path. Fresh `npm install @theglitchking/semantic-memory@1.1.0` installs failed to register hooks correctly and slash commands hit ancient code from the legacy npm package (still on the registry at 0.2.x).

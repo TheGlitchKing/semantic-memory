@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Single-plugin marketplace for semantic-memory — the unified memory-layer plugin. v1.1.0 absorbs brain's strengths: AGENTS.md contract artifact, hard-gated verification sessions, multi-agent skill bundler (codex/copilot/pi), and SessionStart drift detection — all backwards-compatible with v1.0.x via deprecation shims.",
-    "version": "1.1.1"
+    "version": "1.1.2"
   },
   "plugins": [
     {
       "name": "semantic-memory",
       "description": "Unified memory-layer plugin for Claude Code. One MCP server, 40 tools across multi-corpus search/read/write/graph/lint/sessions/contract. v1.1.0 adds: AGENTS.md contract artifact, hard-gated verification sessions (session_start/run/finish/status), proposal-mode synthesize_note + synthesize_promote, multi-agent skill bundler (codex/copilot/pi via the new `skills` CLI), and SessionStart drift detection. Backwards-compatible with v1.0.x — every previous tool name remains callable through deprecation shims (removed in v2.0.0).",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "author": {
         "name": "TheGlitchKing"
       },
