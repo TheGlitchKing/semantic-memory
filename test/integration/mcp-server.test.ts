@@ -32,7 +32,7 @@ describe("MCP Server", () => {
 
   it("should list all expected tools", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(35);
+    expect(tools.length).toBe(36);
     const names = tools.map((t) => t.name);
     expect(names).toContain("search_semantic");
     expect(names).toContain("search_text");

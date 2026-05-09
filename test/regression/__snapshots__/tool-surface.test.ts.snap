@@ -35,6 +35,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "search_semantic",
   "search_text",
   "synthesize_note",
+  "synthesize_promote",
   "update_frontmatter",
   "update_note",
 ]
@@ -925,7 +926,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "search_text",
   },
   {
-    "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact.",
+    "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact. Pass \`proposal: true\` to file the result under \`proposals/<date>-<slug>.md\` with \`status: proposal\` for review-first workflows; \`synthesize_promote\` then moves it to the canonical destination.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -954,6 +955,15 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
           "default": false,
           "type": "boolean",
         },
+        "proposal": {
+          "default": false,
+          "description": "Write to proposals/<date>-<slug>.md with status:proposal instead of the canonical destination. Use for review-first workflows.",
+          "type": "boolean",
+        },
+        "proposal_subdir": {
+          "description": "Override the proposal subdirectory (default 'proposals'). Useful for source segregation, e.g. 'proposals/research'.",
+          "type": "string",
+        },
         "related_notes": {
           "description": "Note names or paths to auto-link in the body + list under Related",
           "items": {
@@ -976,7 +986,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
           "type": "string",
         },
         "suggested_path": {
-          "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'",
+          "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'. In proposal mode, this is recorded as proposed_target frontmatter and the actual write goes to proposals/.",
           "type": "string",
         },
         "topic": {
@@ -996,6 +1006,32 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "synthesize_note",
+  },
+  {
+    "description": "Move a reviewed proposal note to its canonical destination. Reads the proposal's frontmatter (which must have \`status: proposal\` and \`proposed_target\`), strips proposal markers, restores canonical status, and atomically creates the target + deletes the proposal. Optional \`target_path\` overrides the proposal's recorded \`proposed_target\`.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "dry_run": {
+          "default": false,
+          "type": "boolean",
+        },
+        "proposal_path": {
+          "description": "Path to the proposal note relative to vault root, e.g. 'proposals/2026-05-08-auth-flow.md'",
+          "type": "string",
+        },
+        "target_path": {
+          "description": "Optional destination override. When omitted, uses the proposal's own \`proposed_target\` frontmatter.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "proposal_path",
+      ],
+      "type": "object",
+    },
+    "name": "synthesize_promote",
   },
   {
     "description": "Set or delete YAML frontmatter keys — pass null to delete a key",

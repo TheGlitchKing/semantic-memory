@@ -2,10 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { applyPatch, type ChangeSet } from "../../core/patch.js";
-import { buildSynthesizeChangeSet } from "../../core/synthesize.js";
+import { buildSynthesizeChangeSet, buildPromoteChangeSet } from "../../core/synthesize.js";
 import { buildIngestChangeSet } from "../../core/ingest.js";
 import { installDefaultSchema } from "../../core/schema.js";
 import { logEvent } from "../../core/log.js";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import matter from "gray-matter";
 
 export function registerPatchTools(server: McpServer, ctx: ServerContext): void {
   if (ctx.options.readOnly) return;
@@ -64,11 +67,11 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
 
   server.tool(
     "synthesize_note",
-    "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact.",
+    "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact. Pass `proposal: true` to file the result under `proposals/<date>-<slug>.md` with `status: proposal` for review-first workflows; `synthesize_promote` then moves it to the canonical destination.",
     {
       topic: z.string(),
       answer: z.string(),
-      suggested_path: z.string().describe("Target path relative to vault root, e.g. 'decisions/auth-migration.md'"),
+      suggested_path: z.string().describe("Target path relative to vault root, e.g. 'decisions/auth-migration.md'. In proposal mode, this is recorded as proposed_target frontmatter and the actual write goes to proposals/."),
       type: z.string().optional().default("note").describe("One of the schema types: note, decision, gotcha, source"),
       sources: z.array(z.string()).optional().describe("External URLs or paths — populate provenance.sources"),
       derived_from: z.array(z.string()).optional().describe("Wikilinks to other vault notes — populate provenance.derived_from"),
@@ -79,6 +82,8 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       decided_on: z.string().optional(),
       severity: z.string().optional(),
       dry_run: z.boolean().optional().default(false),
+      proposal: z.boolean().optional().default(false).describe("Write to proposals/<date>-<slug>.md with status:proposal instead of the canonical destination. Use for review-first workflows."),
+      proposal_subdir: z.string().optional().describe("Override the proposal subdirectory (default 'proposals'). Useful for source segregation, e.g. 'proposals/research'."),
     },
     async (args) => {
       const preview = buildSynthesizeChangeSet({
@@ -94,6 +99,8 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
         decision_maker: args.decision_maker,
         decided_on: args.decided_on,
         severity: args.severity,
+        proposal: args.proposal,
+        proposal_subdir: args.proposal_subdir,
       });
       const result = await applyPatch(ctx.notesPath, preview.changeset, {
         dryRun: args.dry_run,
@@ -101,8 +108,14 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       if (result.ok && !args.dry_run) {
         await logEvent(ctx.notesPath, {
           kind: "synthesis",
-          summary: `synthesized ${preview.title}`,
-          payload: { path: preview.path, type: args.type, sources: args.sources ?? [], derived_from: args.derived_from ?? [] },
+          summary: `synthesized ${preview.title}${preview.is_proposal ? " (proposal)" : ""}`,
+          payload: {
+            path: preview.path,
+            type: args.type,
+            sources: args.sources ?? [],
+            derived_from: args.derived_from ?? [],
+            ...(preview.is_proposal && { is_proposal: true, proposed_target: preview.proposed_target }),
+          },
         }).catch(() => {});
       } else if (!result.ok && !args.dry_run) {
         await logEvent(ctx.notesPath, {
@@ -114,13 +127,69 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       return ctx.textResponse(
         JSON.stringify(
           {
-            preview: { path: preview.path, title: preview.title },
+            preview: {
+              path: preview.path,
+              title: preview.title,
+              ...(preview.is_proposal && { is_proposal: true, proposed_target: preview.proposed_target }),
+            },
             result,
           },
           null,
           2
         )
       );
+    }
+  );
+
+  server.tool(
+    "synthesize_promote",
+    "Move a reviewed proposal note to its canonical destination. Reads the proposal's frontmatter (which must have `status: proposal` and `proposed_target`), strips proposal markers, restores canonical status, and atomically creates the target + deletes the proposal. Optional `target_path` overrides the proposal's recorded `proposed_target`.",
+    {
+      proposal_path: z.string().describe("Path to the proposal note relative to vault root, e.g. 'proposals/2026-05-08-auth-flow.md'"),
+      target_path: z.string().optional().describe("Optional destination override. When omitted, uses the proposal's own `proposed_target` frontmatter."),
+      dry_run: z.boolean().optional().default(false),
+    },
+    async (args) => {
+      const absoluteProposalPath = join(ctx.notesPath, args.proposal_path);
+      let raw: string;
+      try {
+        raw = await readFile(absoluteProposalPath, "utf-8");
+      } catch (err) {
+        return ctx.textResponse(JSON.stringify({
+          ok: false,
+          error: `Proposal file not found: ${args.proposal_path}`,
+        }, null, 2));
+      }
+      const parsed = matter(raw);
+      const fm = parsed.data as Record<string, unknown>;
+      if (fm.status !== "proposal") {
+        return ctx.textResponse(JSON.stringify({
+          ok: false,
+          error: `Note ${args.proposal_path} does not have status:proposal frontmatter (got status=${JSON.stringify(fm.status)}). Refusing to promote — only proposal-flagged notes are eligible.`,
+        }, null, 2));
+      }
+
+      let preview;
+      try {
+        preview = buildPromoteChangeSet({
+          proposal_path: args.proposal_path,
+          target_path: args.target_path,
+          body: parsed.content,
+          frontmatter: fm,
+        });
+      } catch (err: any) {
+        return ctx.textResponse(JSON.stringify({ ok: false, error: err?.message ?? String(err) }, null, 2));
+      }
+
+      const result = await applyPatch(ctx.notesPath, preview.changeset, { dryRun: args.dry_run });
+      if (result.ok && !args.dry_run) {
+        await logEvent(ctx.notesPath, {
+          kind: "synthesis",
+          summary: `promoted proposal ${preview.from} → ${preview.to}`,
+          payload: { tool: "synthesize_promote", from: preview.from, to: preview.to },
+        }).catch(() => {});
+      }
+      return ctx.textResponse(JSON.stringify({ preview: { from: preview.from, to: preview.to }, result }, null, 2));
     }
   );
 

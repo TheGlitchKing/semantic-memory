@@ -34,7 +34,8 @@ export const CURRENT_TOOL_INVENTORY: readonly ToolInventoryEntry[] = [
   { name: "move_note", description: "Move or rename a note — updates wikilinks across the vault.", group: "write" },
   // patch / synthesis
   { name: "apply_patch", description: "Atomic multi-note patch with rollback.", group: "patch" },
-  { name: "synthesize_note", description: "Turn a researched answer + sources into a new filed note with provenance frontmatter.", group: "patch" },
+  { name: "synthesize_note", description: "Turn a researched answer + sources into a new filed note with provenance frontmatter. Pass proposal:true for review-first workflows.", group: "patch" },
+  { name: "synthesize_promote", description: "Move a reviewed proposal note to its canonical destination, stripping proposal markers.", group: "patch" },
   { name: "ingest_source", description: "Build + apply a ChangeSet that ingests a source and the notes extracted from it.", group: "patch" },
   { name: "install_schema", description: "Bootstrap vault.schema.yml in the vault root with the default schema.", group: "patch" },
   // lint

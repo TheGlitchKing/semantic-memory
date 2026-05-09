@@ -14,8 +14,8 @@ export { regenDirectoryIndex, regenIndexesForPaths, INDEX_FILE, INDEX_OVERFLOW_T
 export type { IndexEntry, RegenResult } from "./index-regen.js";
 export { applyPatch } from "./patch.js";
 export type { ChangeSet, ApplyPatchOptions, ApplyPatchResult } from "./patch.js";
-export { buildSynthesizeChangeSet } from "./synthesize.js";
-export type { SynthesizeNoteInput } from "./synthesize.js";
+export { buildSynthesizeChangeSet, buildPromoteChangeSet } from "./synthesize.js";
+export type { SynthesizeNoteInput, SynthesizePreview, PromoteInput, PromotePreview } from "./synthesize.js";
 export { lintVault, formatLintReport } from "./lint.js";
 export type { LintReport } from "./lint.js";
 export { regenerateAgentsContract, inspectAgentsContract } from "./agents-contract.js";
