@@ -2,6 +2,72 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.1.0] - 2026-05-08 — brain-absorption
+
+Adapts four targeted strengths from `JimmyMcBride/brain` into semantic-memory: AGENTS.md contract artifact, hard-gated verification sessions, multi-agent skill bundler, distill/synthesize unification — plus a server.ts refactor that makes future additions cheap, a deprecation-shimmed tool consolidation, and an opt-in SessionStart drift-detection layer.
+
+### Added
+
+- **AGENTS.md contract artifact** at the project root with managed-block markers (`<!-- semantic-memory:begin contract -->`...`<!-- end -->`). Frontmatter records `generated_by`, `version`, `last_generated`. The block lists Active Modes, Required Workflow, Tool Surface (live + deprecated), and Memory Policy. Local Notes tail outside the markers is preserved verbatim across regenerations. New tools: `regenerate_contract`, `inspect_contract`. New slash command: `/contract`.
+- **Hard-gated verification sessions.** New module `src/core/session.ts` owns `<project>/.claude/.semantic-memory/session.json`. New MCP tools: `session_start`, `session_run`, `session_finish`, `session_status`. `session_finish` refuses without recorded verifications unless `verified: false` AND a non-empty `reason` is provided. State is opt-in; sessions auto-record `notes_touched` from `apply_patch` / `synthesize_note` / `synthesize_promote` operations.
+- **Distill ↔ synthesize_note unification.** `synthesize_note` gains `proposal: boolean` (writes to `proposals/<date>-<slug>.md` with `status: proposal`), `proposal_subdir` (override), and `from_session: boolean` (auto-pulls task context, verifications, and touched notes from the active session). New tool `synthesize_promote` atomically moves a reviewed proposal to its canonical destination.
+- **Multi-agent skill bundler.** New CLI subcommand tree `bin/semantic-memory skills {targets,install,uninstall,list}` for codex, copilot, and pi. Each install writes a `.semantic-memory-skill-manifest.json` with sha256s for stale/drift detection. Non-destructive by default; `--force` overrides. Existing Claude flow via `claude-plugin-runtime` postinstall is unchanged.
+- **SessionStart drift detection.** Fast-tier checks (file-system probes only) for `.mcp.json` server entry, hook registration, AGENTS.md managed-block presence, and session staleness. Inline JS in `hooks/vault-context.js` — no spawn cost. Healthy installs see nothing; drifted installs see a single `<vault-drift>` block at session start with a pointer to `/healthcheck`.
+- **Manual `/healthcheck` deep audit.** New module `src/core/healthcheck.ts` provides fast and slow tiers (slow includes full `lint_vault`). 5-minute result cache. CLI command `semantic-memory healthcheck` accepts `--fast` and `--json`. The `--fix` flag is reserved for v1.2.
+
+### Changed
+
+- `src/mcp/server.ts` (1039 lines, 33 tools in one file) split into per-domain modules under `src/mcp/tools/*.ts` with a shared `src/mcp/context.ts`. server.ts shrinks to 96 lines (composition root + lifecycle). **Tool surface unchanged** — every tool name, schema, and handler is preserved bit-for-bit, gated by the existing regression snapshot suite.
+- `lint_vault` accepts a new optional `checks: ("schema"|"provenance"|"stale"|"broken_links")[]` filter. Omit for the existing full report. Additive schema change.
+- `manage_tags` `action` enum widens to include `"rename"`, with new optional `from` / `to` fields. `action='rename'` calls the existing `tagManager.renameVaultWide`. Additive schema change.
+- `.claude/CLAUDE.md` now opens with a pointer to `AGENTS.md` as the primary contract; CLAUDE.md remains for repo-specific augmentation.
+
+### Deprecated (callable through v1.x via shim, removed in v2.0.0)
+
+- `find_schema_violations` → use `lint_vault({checks: ["schema"]})`
+- `find_missing_provenance` → use `lint_vault({checks: ["provenance"]})`
+- `find_stale` → use `lint_vault({checks: ["stale"]})`
+- `find_broken_links` → use `lint_vault({checks: ["broken_links"]})`
+- `read_multiple_notes` → call `read_note` in a loop or via batched MCP calls
+- `rename_tag` → use `manage_tags({action: "rename", from, to})`
+
+All shims emit `[DEPRECATED — removed in v2.0.0; use ...]` prefix in their tool descriptions, visible to agents in the MCP tool list.
+
+### Tool-surface delta
+
+```
+v1.0.1 → v1.1.0
+  +regenerate_contract  +inspect_contract     (Phase 3)
+  +synthesize_promote                          (Phase 4)
+  +session_start +session_run +session_finish
+  +session_status                              (Phase 5)
+  = 33 → 40 tools (write mode)
+  = 21 → 21 tools (read-only mode, unchanged)
+```
+
+### Backwards-compatibility contract
+
+Four statements that remain true after v1.1.0 ships:
+
+1. **Every existing MCP tool name remains callable.** Eliminated tools become deprecation shims that delegate to their survivors. No automation needs to change in v1.x.
+2. **Hook output is unchanged when no session is active and no drift exists.** The Stop hook only adds new prompts when a session is open; the SessionStart hook only adds drift output when actual drift is detected.
+3. **AGENTS.md generation is opt-in.** Existing repos see no new files until they call `regenerate_contract` or run `/contract`.
+4. **Drift detection is silent on healthy installs.** Auto-check at SessionStart adds <100ms latency and emits zero output when no drift is present.
+
+Storage layout (`.semantic-sidekick-index/`, `~/.semantic-sidekick/models/`) preserved per the v1.0 promise. No re-index, no model re-download required when upgrading from v1.0.x.
+
+### Tests
+
+Suite expanded from 211 (v1.0.1) to 277 tests across 31 files. New coverage:
+- `test/unit/agents-contract.test.ts` (7 tests)
+- Extended `test/unit/synthesize.test.ts` (6 new tests for proposal mode)
+- `test/unit/session.test.ts` (24 tests)
+- `test/phase5/stop-hook-session.test.ts` (5 tests)
+- `test/unit/skills-bundler.test.ts` (12 tests)
+- `test/unit/healthcheck.test.ts` (12 tests)
+
+All pre-existing tests pass unchanged. Snapshot diffs are verified additive-only across all phases.
+
 ## [1.0.1] - 2026-05-08 — Republish (no functional changes)
 
 ### Republish only

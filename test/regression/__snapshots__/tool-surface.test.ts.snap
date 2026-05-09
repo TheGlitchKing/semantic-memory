@@ -16,6 +16,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "graph_path",
   "graph_statistics",
   "ingest_source",
+  "inspect_contract",
   "install_schema",
   "lint_vault",
   "list_notes",
@@ -25,6 +26,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "move_note",
   "read_multiple_notes",
   "read_note",
+  "regenerate_contract",
   "regenerate_index",
   "reindex",
   "rename_tag",
@@ -32,7 +34,12 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "search_hybrid",
   "search_semantic",
   "search_text",
+  "session_finish",
+  "session_run",
+  "session_start",
+  "session_status",
   "synthesize_note",
+  "synthesize_promote",
   "update_frontmatter",
   "update_note",
 ]
@@ -220,7 +227,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "delete_note",
   },
   {
-    "description": "Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['broken_links']})] Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -234,7 +241,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_broken_links",
   },
   {
-    "description": "Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['provenance']})] Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -248,7 +255,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_missing_provenance",
   },
   {
-    "description": "Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['schema']})] Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -262,7 +269,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_schema_violations",
   },
   {
-    "description": "Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['stale']})] Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -446,6 +453,21 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "ingest_source",
   },
   {
+    "description": "Read-only inspection of AGENTS.md state — whether it exists, whether the managed-block markers are present, and how much Local Notes content is preserved.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "projectRoot": {
+          "description": "Override the project root path. Defaults to the parent of the vault directory if not provided.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "inspect_contract",
+  },
+  {
     "description": "Bootstrap vault.schema.yml in the vault root with the default schema (note/decision/gotcha/source types + provenance fields). Skipped if present unless force=true.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -461,11 +483,24 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "install_schema",
   },
   {
-    "description": "Run all lint rules at once — returns full LintReport with findings grouped by rule.",
+    "description": "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass \`checks\` to filter to specific rules (schema, provenance, stale, broken_links) — when filtered, byRule contains only the requested rules.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "checks": {
+          "description": "Filter to specific lint rules. Omit for full report.",
+          "items": {
+            "enum": [
+              "schema",
+              "provenance",
+              "stale",
+              "broken_links",
+            ],
+            "type": "string",
+          },
+          "type": "array",
+        },
         "pathGlob": {
           "type": "string",
         },
@@ -559,7 +594,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "log_query",
   },
   {
-    "description": "Add, remove, or list tags on a note (frontmatter and inline)",
+    "description": "Add, remove, list, or rename tags on a note (frontmatter and inline). Use action='rename' with \`from\` and \`to\` to rename a tag vault-wide; \`path\` is ignored in that mode.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -569,7 +604,12 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
             "add",
             "remove",
             "list",
+            "rename",
           ],
+          "type": "string",
+        },
+        "from": {
+          "description": "For action='rename': the existing tag name (no leading #)",
           "type": "string",
         },
         "path": {
@@ -580,6 +620,10 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
             "type": "string",
           },
           "type": "array",
+        },
+        "to": {
+          "description": "For action='rename': the new tag name (no leading #)",
+          "type": "string",
         },
       },
       "required": [
@@ -612,7 +656,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "move_note",
   },
   {
-    "description": "Batch read multiple notes in one call",
+    "description": "[DEPRECATED — removed in v2.0.0; use read_note in a loop or via batched MCP calls] Batch read multiple notes in one call",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -649,6 +693,26 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "read_note",
   },
   {
+    "description": "Generate or refresh AGENTS.md at the project root with a managed-block contract. Preserves the 'Local Notes' tail across regenerations. Refuses to overwrite hand-edits inside the managed block unless force=true. Returns the path written and whether hand-edits were detected.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "force": {
+          "default": false,
+          "description": "Overwrite hand-edited managed-block content.",
+          "type": "boolean",
+        },
+        "projectRoot": {
+          "description": "Override the project root path. Defaults to the parent of the vault directory if not provided.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "regenerate_contract",
+  },
+  {
     "description": "Force regeneration of INDEX.md for one directory (or all affected by a list of paths). Idempotent — skips write if unchanged.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -680,7 +744,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "reindex",
   },
   {
-    "description": "Rename a tag across all notes in the vault",
+    "description": "[DEPRECATED — removed in v2.0.0; use manage_tags({action:'rename', from, to})] Rename a tag across all notes in the vault",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -866,7 +930,84 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "search_text",
   },
   {
-    "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact.",
+    "description": "Close the active session. HARD GATED: refused without recorded verifications unless verified=false is passed with a \`reason\` waiving verification (e.g. for prose-only edits). Deletes session state on success.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "description": "Required when verified=false. Why verification is not applicable to this task.",
+          "type": "string",
+        },
+        "summary": {
+          "description": "One-line description of what was accomplished. Appears in the closeout log entry.",
+          "type": "string",
+        },
+        "verified": {
+          "default": true,
+          "description": "Pass false to explicitly waive verification (requires \`reason\`).",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "summary",
+      ],
+      "type": "object",
+    },
+    "name": "session_finish",
+  },
+  {
+    "description": "Run a verification command inside the active session. Captures exit code, signal, duration, and a tail of stdout+stderr. Refused when no session is open. Default timeout: 5 minutes.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "description": "Shell command to run, e.g. 'npm test' or 'go test ./...'.",
+          "type": "string",
+        },
+        "timeout_ms": {
+          "description": "Override the default 5-minute timeout (in milliseconds).",
+          "exclusiveMinimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "cmd",
+      ],
+      "type": "object",
+    },
+    "name": "session_run",
+  },
+  {
+    "description": "Open a verification-gated session for a multi-step task. State persists at .claude/.semantic-memory/session.json. Refuses if a session is already open with a different task. Calling with the same task as an open session returns the existing id (idempotent).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "description": "Short description of the task being worked on. Recorded in session state and surfaced at session_finish.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "task",
+      ],
+      "type": "object",
+    },
+    "name": "session_start",
+  },
+  {
+    "description": "Read-only inspection of the active session — task, verifications, notes_touched, and a state label (active | stale | no_session). 'stale' indicates last_activity_at >24h ago.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "session_status",
+  },
+  {
+    "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact. Pass \`proposal: true\` to file the result under \`proposals/<date>-<slug>.md\` with \`status: proposal\` for review-first workflows; \`synthesize_promote\` then moves it to the canonical destination.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -895,6 +1036,20 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
           "default": false,
           "type": "boolean",
         },
+        "from_session": {
+          "default": false,
+          "description": "When true, pull defaults from the active session: prepend a verification summary to \`answer\`, default \`derived_from\` to session.notes_touched, and append session id+task to \`sources\`. No-op when no session is active.",
+          "type": "boolean",
+        },
+        "proposal": {
+          "default": false,
+          "description": "Write to proposals/<date>-<slug>.md with status:proposal instead of the canonical destination. Use for review-first workflows.",
+          "type": "boolean",
+        },
+        "proposal_subdir": {
+          "description": "Override the proposal subdirectory (default 'proposals'). Useful for source segregation, e.g. 'proposals/research'.",
+          "type": "string",
+        },
         "related_notes": {
           "description": "Note names or paths to auto-link in the body + list under Related",
           "items": {
@@ -917,7 +1072,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
           "type": "string",
         },
         "suggested_path": {
-          "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'",
+          "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'. In proposal mode, this is recorded as proposed_target frontmatter and the actual write goes to proposals/.",
           "type": "string",
         },
         "topic": {
@@ -937,6 +1092,32 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "synthesize_note",
+  },
+  {
+    "description": "Move a reviewed proposal note to its canonical destination. Reads the proposal's frontmatter (which must have \`status: proposal\` and \`proposed_target\`), strips proposal markers, restores canonical status, and atomically creates the target + deletes the proposal. Optional \`target_path\` overrides the proposal's recorded \`proposed_target\`.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "dry_run": {
+          "default": false,
+          "type": "boolean",
+        },
+        "proposal_path": {
+          "description": "Path to the proposal note relative to vault root, e.g. 'proposals/2026-05-08-auth-flow.md'",
+          "type": "string",
+        },
+        "target_path": {
+          "description": "Optional destination override. When omitted, uses the proposal's own \`proposed_target\` frontmatter.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "proposal_path",
+      ],
+      "type": "object",
+    },
+    "name": "synthesize_promote",
   },
   {
     "description": "Set or delete YAML frontmatter keys — pass null to delete a key",

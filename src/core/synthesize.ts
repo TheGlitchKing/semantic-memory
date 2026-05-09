@@ -15,12 +15,29 @@ export interface SynthesizeNoteInput {
   decided_on?: string;
   severity?: string;
   extra_frontmatter?: Record<string, unknown>;
+  /**
+   * When true, the resulting note is filed under `proposals/<date>-<slug>.md` with
+   * `status: proposal` frontmatter, regardless of `suggested_path`. The original path
+   * is preserved as `proposed_target` in frontmatter so `synthesize_promote` knows
+   * where to move it on acceptance.
+   */
+  proposal?: boolean;
+  /**
+   * When provided alongside `proposal: true`, used as the proposal subdirectory name.
+   * Defaults to "proposals". Useful for callers that want to segregate by source
+   * (e.g. "proposals/research", "proposals/outage").
+   */
+  proposal_subdir?: string;
 }
 
 export interface SynthesizePreview {
   changeset: ChangeSet;
   path: string;
   title: string;
+  /** True when the preview is a proposal — caller (or `synthesize_promote`) must move it later. */
+  is_proposal?: boolean;
+  /** When `is_proposal` is true, the canonical path that `synthesize_promote` should move it to. */
+  proposed_target?: string;
 }
 
 /**
@@ -29,16 +46,26 @@ export interface SynthesizePreview {
  * any related_notes that appear as bare titles in the body.
  *
  * Does NOT write to disk — always returns a ChangeSet. Callers pass it to applyPatch.
+ *
+ * Proposal mode: when `proposal: true`, the path is rewritten to
+ * `<proposal_subdir>/<YYYY-MM-DD>-<slug>.md`, the `status` is forced to `proposal`,
+ * and `proposed_target` records the original suggested path. `synthesize_promote`
+ * later moves the file to that target and clears the proposal frontmatter.
  */
 export function buildSynthesizeChangeSet(input: SynthesizeNoteInput): SynthesizePreview {
-  const path = input.suggested_path.endsWith(".md") ? input.suggested_path : input.suggested_path + ".md";
-  const title = input.topic.trim();
   const today = new Date().toISOString().slice(0, 10);
+  const title = input.topic.trim();
+  const canonicalPath = input.suggested_path.endsWith(".md") ? input.suggested_path : input.suggested_path + ".md";
+
+  const isProposal = input.proposal === true;
+  const subdir = (input.proposal_subdir ?? "proposals").replace(/\/+$/, "");
+  const slug = slugForTopic(title);
+  const path = isProposal ? `${subdir}/${today}-${slug}.md` : canonicalPath;
 
   const frontmatter: Record<string, unknown> = {
     title,
     type: input.type ?? "note",
-    status: input.status ?? "active",
+    status: isProposal ? "proposal" : (input.status ?? "active"),
     last_verified: today,
     confidence: input.confidence ?? "medium",
     ...(input.sources && input.sources.length > 0 && { sources: input.sources }),
@@ -46,6 +73,7 @@ export function buildSynthesizeChangeSet(input: SynthesizeNoteInput): Synthesize
     ...(input.decision_maker && { decision_maker: input.decision_maker }),
     ...(input.decided_on && { decided_on: input.decided_on }),
     ...(input.severity && { severity: input.severity }),
+    ...(isProposal && { proposed_target: canonicalPath }),
     ...(input.extra_frontmatter ?? {}),
   };
 
@@ -54,7 +82,20 @@ export function buildSynthesizeChangeSet(input: SynthesizeNoteInput): Synthesize
   const create: PatchCreate = { path, content: body, frontmatter };
   const changeset: ChangeSet = { creates: [create] };
 
-  return { changeset, path, title };
+  return {
+    changeset,
+    path,
+    title,
+    ...(isProposal && { is_proposal: true, proposed_target: canonicalPath }),
+  };
+}
+
+function slugForTopic(topic: string): string {
+  return topic
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "untitled";
 }
 
 function buildBody(title: string, answer: string, relatedNotes: string[]): string {
@@ -97,4 +138,65 @@ function wikilinkName(pathOrName: string): string {
   // "Auth Migration" → "Auth Migration"
   const base = basename(pathOrName).replace(/\.md$/, "");
   return base;
+}
+
+export interface PromoteInput {
+  /**
+   * Path to the proposal note (relative to vault root). Must have `status: proposal` frontmatter
+   * AND `proposed_target` frontmatter, both written by `buildSynthesizeChangeSet` in proposal mode.
+   */
+  proposal_path: string;
+  /**
+   * Optional override for the destination path. When omitted, the proposal's own
+   * `proposed_target` frontmatter is used.
+   */
+  target_path?: string;
+}
+
+export interface PromotePreview {
+  changeset: ChangeSet;
+  from: string;
+  to: string;
+}
+
+/**
+ * Promote a reviewed proposal to its canonical destination.
+ *
+ * Reads the proposal's existing content + frontmatter, strips `status: proposal` and
+ * `proposed_target` keys, restores the original status (default "active"), and returns
+ * a ChangeSet that:
+ *   - creates the canonical path with the cleaned frontmatter + body
+ *   - deletes the proposal path
+ *
+ * The caller (the MCP tool) reads the proposal file, runs this builder, and applies the
+ * resulting changeset via applyPatch — preserving atomicity and rollback semantics.
+ */
+export function buildPromoteChangeSet(input: {
+  proposal_path: string;
+  target_path?: string;
+  body: string;
+  frontmatter: Record<string, unknown>;
+}): PromotePreview {
+  const fm = { ...input.frontmatter };
+  const target = input.target_path ?? (typeof fm.proposed_target === "string" ? fm.proposed_target : undefined);
+  if (!target) {
+    throw new Error(
+      `Cannot promote ${input.proposal_path}: no target_path provided and no 'proposed_target' frontmatter on the proposal.`
+    );
+  }
+  // Restore canonical status (default "active") and strip proposal markers.
+  if (fm.status === "proposal") fm.status = "active";
+  delete fm.proposed_target;
+
+  const create: PatchCreate = {
+    path: target,
+    content: input.body,
+    frontmatter: fm,
+  };
+  const changeset: ChangeSet = {
+    creates: [create],
+    deletes: [{ path: input.proposal_path }],
+  };
+
+  return { changeset, from: input.proposal_path, to: target };
 }

@@ -6,6 +6,15 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { registerUpdateCommands } from "@theglitchking/claude-plugin-runtime";
+import {
+  resolveTarget,
+  installSkills,
+  uninstallSkills,
+  listShippedSkills,
+  SKILL_BUNDLER_AGENTS,
+  type AgentName,
+  type Scope,
+} from "./skills.js";
 
 const require_ = createRequire(import.meta.url);
 const { version } = require_("../../package.json") as { version: string };
@@ -568,9 +577,11 @@ program
 program
   .command("healthcheck")
   .description(
-    "Verify the local install starts cleanly; self-heal common npx-cache corruption (ERR_MODULE_NOT_FOUND)",
+    "Verify the local install starts cleanly + run drift detection. Self-heals common npx-cache corruption (ERR_MODULE_NOT_FOUND). With --fast, skips the slow tier (full vault lint).",
   )
-  .action(() => {
+  .option("--fast", "Run only the fast-tier drift checks (file-system probes). Skips the slow tier (full vault lint).", false)
+  .option("--json", "Emit structured JSON output instead of human-readable text.", false)
+  .action(async (opts) => {
     const cwd = process.cwd();
     const bin = findLocalBin(cwd);
     if (!bin) {
@@ -623,8 +634,160 @@ program
       }
     }
 
-    console.error(stderr || `local install failed (exit ${r.status})`);
-    process.exit(1);
+    if (stderr) console.error(stderr);
+    if (r.status !== 0) {
+      console.error(`local install failed (exit ${r.status})`);
+      process.exit(1);
+    }
+  });
+
+// Append drift detection to the healthcheck handler (Phase 8). Wraps the original
+// handler — the function above runs first (npx-cache self-heal), then drift detection
+// runs and prints additional findings. --fast skips the slow tier (full vault lint).
+const driftHealthcheckActionPostprocess = async (opts: { fast?: boolean; json?: boolean }) => {
+  try {
+    const { runHealthcheck, formatDriftBanner } = await import("../core/healthcheck.js");
+    const projectRoot = process.cwd();
+    // For the auto-derived vault path, prefer .claude/.vault if present
+    const vaultCandidate = join(projectRoot, ".claude", ".vault");
+    const vaultPath = existsSync(vaultCandidate) ? vaultCandidate : undefined;
+    const result = await runHealthcheck({
+      projectRoot,
+      vaultPath,
+      tier: opts.fast ? "fast" : "all",
+      force: true,
+    });
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    const banner = formatDriftBanner(result);
+    if (banner) {
+      console.log("");
+      console.log(banner);
+    } else {
+      console.log("");
+      console.log(`✓ no drift detected (${result.findings.length} checks ran in ${result.duration_ms}ms)`);
+    }
+  } catch (err: any) {
+    console.error(`drift check threw: ${err?.message ?? err}`);
+  }
+};
+
+// Wire the drift-detection postprocess. We do this by attaching to the existing
+// healthcheck command's postAction hook so the original handler still runs first.
+const healthcheckCmd = program.commands.find((c) => c.name() === "healthcheck");
+if (healthcheckCmd) {
+  healthcheckCmd.hook("postAction", async (thisCmd) => {
+    const opts = thisCmd.opts();
+    await driftHealthcheckActionPostprocess({ fast: !!opts.fast, json: !!opts.json });
+  });
+}
+
+// --- Skill bundler (Phase 6) ---
+
+function parseAgent(input: string): AgentName {
+  const a = input.toLowerCase();
+  if (!SKILL_BUNDLER_AGENTS.includes(a as AgentName)) {
+    console.error(`Unknown agent: ${input}. Supported: ${SKILL_BUNDLER_AGENTS.join(", ")}.`);
+    process.exit(2);
+  }
+  return a as AgentName;
+}
+
+function parseScope(input: string): Scope {
+  if (input !== "global" && input !== "local") {
+    console.error(`Unknown scope: ${input}. Use 'global' or 'local'.`);
+    process.exit(2);
+  }
+  return input;
+}
+
+function findSourceRoot(): string {
+  // 1. Installed: <cwd>/node_modules/@theglitchking/semantic-sidekick or semantic-memory
+  for (const pkg of ["semantic-memory", "semantic-sidekick"]) {
+    const installed = join(process.cwd(), "node_modules", "@theglitchking", pkg);
+    if (existsSync(installed)) return installed;
+  }
+  // 2. Dev: derive from the bin location (this file lives at <root>/dist/cli/index.js)
+  const dev = resolve(new URL("../../", import.meta.url).pathname);
+  return dev;
+}
+
+const skillsCmd = program.command("skills").description("Install, target, or uninstall skill bundles for non-Claude agents (codex, copilot, pi). Claude installs continue to use the npm postinstall flow.");
+
+skillsCmd
+  .command("targets")
+  .description("Preview where skill bundles would be installed for one or more agents.")
+  .option("--agent <name...>", "One or more agents (default: all). Repeatable.", undefined as any)
+  .option("--scope <scope>", "global or local (default: local)", "local")
+  .option("--project <path>", "Project root for local-scope paths (default: cwd)", process.cwd())
+  .action((opts) => {
+    const scope = parseScope(opts.scope);
+    const agents: AgentName[] = (opts.agent && opts.agent.length > 0 ? opts.agent : SKILL_BUNDLER_AGENTS).map(parseAgent);
+    const out = agents.map((a) => resolveTarget(a, scope, opts.project));
+    console.log(JSON.stringify(out, null, 2));
+  });
+
+skillsCmd
+  .command("install")
+  .description("Install skill bundles into an agent's skill directory. Non-destructive by default; --force to overwrite.")
+  .requiredOption("--agent <name>", "Agent runtime (claude, codex, copilot, pi)")
+  .option("--scope <scope>", "global or local (default: local)", "local")
+  .option("--project <path>", "Project root for local-scope paths (default: cwd)", process.cwd())
+  .option("--only <names...>", "Restrict to specific skill names (default: all shipped)")
+  .option("--force", "Overwrite even if drift is detected against an existing manifest", false)
+  .action(async (opts) => {
+    const agent = parseAgent(opts.agent);
+    const scope = parseScope(opts.scope);
+    if (agent === "claude") {
+      console.error(
+        "Claude skill installs are handled by the npm postinstall (claude-plugin-runtime). " +
+          "Run `npm install @theglitchking/semantic-memory` instead — that flow symlinks " +
+          "skills into ~/.claude/skills/ or .claude/skills/ automatically. The skills CLI " +
+          "is intended for non-Claude agents (codex, copilot, pi) which do not have that " +
+          "postinstall integration."
+      );
+      process.exit(2);
+    }
+    const sourceRoot = findSourceRoot();
+    const result = await installSkills({
+      agent,
+      scope,
+      sourceRoot,
+      projectRoot: opts.project,
+      version,
+      only: opts.only,
+      force: opts.force === true,
+    });
+    console.log(JSON.stringify(result, null, 2));
+    if (result.installed.length === 0 && result.reason) process.exit(1);
+  });
+
+skillsCmd
+  .command("uninstall")
+  .description("Remove skill bundles tracked by the semantic-memory manifest. User-written skills outside the manifest are left untouched.")
+  .requiredOption("--agent <name>", "Agent runtime (claude, codex, copilot, pi)")
+  .option("--scope <scope>", "global or local (default: local)", "local")
+  .option("--project <path>", "Project root for local-scope paths (default: cwd)", process.cwd())
+  .action(async (opts) => {
+    const agent = parseAgent(opts.agent);
+    const scope = parseScope(opts.scope);
+    if (agent === "claude") {
+      console.error("Claude skill uninstalls go through the npm uninstall flow. The skills CLI is for non-Claude agents.");
+      process.exit(2);
+    }
+    const result = await uninstallSkills({ agent, scope, projectRoot: opts.project });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+skillsCmd
+  .command("list")
+  .description("List the skill bundles shipped with this plugin version.")
+  .action(async () => {
+    const sourceRoot = findSourceRoot();
+    const shipped = await listShippedSkills(sourceRoot);
+    console.log(JSON.stringify(shipped.map((s) => s.name), null, 2));
   });
 
 program.parse();

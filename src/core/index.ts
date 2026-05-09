@@ -14,10 +14,33 @@ export { regenDirectoryIndex, regenIndexesForPaths, INDEX_FILE, INDEX_OVERFLOW_T
 export type { IndexEntry, RegenResult } from "./index-regen.js";
 export { applyPatch } from "./patch.js";
 export type { ChangeSet, ApplyPatchOptions, ApplyPatchResult } from "./patch.js";
-export { buildSynthesizeChangeSet } from "./synthesize.js";
-export type { SynthesizeNoteInput } from "./synthesize.js";
+export { buildSynthesizeChangeSet, buildPromoteChangeSet } from "./synthesize.js";
+export type { SynthesizeNoteInput, SynthesizePreview, PromoteInput, PromotePreview } from "./synthesize.js";
 export { lintVault, formatLintReport } from "./lint.js";
 export type { LintReport } from "./lint.js";
+export { regenerateAgentsContract, inspectAgentsContract } from "./agents-contract.js";
+export type {
+  ToolSummary,
+  ModeSummary,
+  RegenerateContractOptions,
+  RegenerateContractResult,
+} from "./agents-contract.js";
+export { SessionManager, deriveSessionDir, deriveProjectRoot } from "./session.js";
+export type {
+  SessionState,
+  SessionStatus,
+  VerificationRecord,
+  SessionStartOptions,
+  SessionFinishInput,
+} from "./session.js";
+export { runHealthcheck, formatDriftBanner, filterToDrift } from "./healthcheck.js";
+export type {
+  Tier as HealthcheckTier,
+  Severity as HealthcheckSeverity,
+  DriftFinding,
+  HealthcheckResult,
+  HealthcheckOptions,
+} from "./healthcheck.js";
 export { loadSchema, validateNote, installDefaultSchema } from "./schema.js";
 export type { VaultSchema, LintFinding, Severity } from "./schema.js";
 
