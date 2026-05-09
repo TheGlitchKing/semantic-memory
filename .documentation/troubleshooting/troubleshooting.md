@@ -5,19 +5,117 @@ domains: [troubleshooting]
 audience: [developers]
 tags: [troubleshooting, debugging, failure-modes, diagnostics]
 status: active
-last_updated: '2026-04-23'
-version: '0.2.3'
-purpose: Symptom / cause / fix across all 5 layers — golden diagnostic sequence
+last_updated: '2026-05-09'
+version: '1.2.0'
+purpose: Symptom / cause / fix across all 5 layers + v1.x additions (sessions, AGENTS.md, drift, state migration). Each entry has a symptom, a likely cause, and a specific diagnostic command.
 load_priority: 9
 ---
 
 # Troubleshooting
 
-> Known failure modes across all five layers. Each has a symptom, a likely cause, and a specific diagnostic command. This doc covers the full sidekick stack; the legacy substrate-only troubleshooting lives at the bottom.
+> Known failure modes for semantic-memory at v1.2.0. v1.x-specific issues are at the top; the full v0.x five-layer matrix follows.
+
+## v1.x rebrand & install issues
+
+### `npm install @theglitchking/semantic-memory@1.0.0` or `@1.1.0` produces a working install but slash commands don't work / hooks don't fire
+- **Cause:** v1.0.0 and v1.1.0 shipped with the rebrand wiring half-finished. The npm package was renamed but `scripts/link-skills.js`, `hooks/reconcile.js`, slash commands, and `src/cli/index.ts` still pointed at `@theglitchking/semantic-sidekick` paths internally.
+- **Fix:** upgrade to v1.1.1+ — the hotfix completed the rebrand. `npm install --save @theglitchking/semantic-memory@latest`.
+- **Avoid:** never install v1.0.x or v1.1.0 fresh. Both have the install-time regression.
+
+### `npx --no @theglitchking/semantic-sidekick <cmd>` runs ancient pre-rebrand code
+- **Cause:** the legacy package `@theglitchking/semantic-sidekick` is still on npm at v0.2.x. `npx` fetches that, not the rebranded `semantic-memory`.
+- **Fix:** use `@theglitchking/semantic-memory` instead. v1.1.1+ slash commands all use the new name.
+
+### Both `@theglitchking/semantic-sidekick` AND `@theglitchking/semantic-memory` installed in `node_modules/`
+- **Cause:** mid-migration state. v0.x → v1.x users sometimes end up with both packages.
+- **Fix:** remove the legacy package: `npm uninstall @theglitchking/semantic-sidekick`. The new package keeps both `bin/semantic-memory` and `bin/semantic-sidekick` aliases internally; nothing scripted against the legacy bin name will break.
+
+## v1.1+ session issues
+
+### `session_finish` refuses with "no verification commands recorded"
+- **Cause:** working as designed — the hard gate prevents silent un-tested closes.
+- **Fix (one of):**
+  - Run a real verification: `session_run({cmd: "npm test"})` then close
+  - Waive verification with reason: `session_finish({summary, verified: false, reason: "doc-only edits, no test surface"})`
+- **See:** [sessions-guide.md](../operational/sessions-guide.md)
+
+### `session_start` refuses with "Session already open"
+- **Cause:** another session is open with a different task. semantic-memory enforces one-at-a-time.
+- **Check:** `session_status()` to see what's there.
+- **Fix:** finish the existing session first, OR if it's stale (>24h, no activity): `rm <project>/.claude/.semantic-memory/session.json`.
+
+### Stop hook prompts about a session you already closed
+- **Cause:** the session.json file wasn't actually deleted, possibly because `session_finish` returned an error you missed.
+- **Check:** `cat <project>/.claude/.semantic-memory/session.json`. If it has `closed_at`, that's a finished session that should have been removed.
+- **Fix:** `rm <project>/.claude/.semantic-memory/session.json`.
+
+### `session_run` hangs forever
+- **Cause:** the wrapped command is interactive and never exits, OR the default 5-minute timeout is too short for a long-running test.
+- **Fix:** pass `timeout_ms: <ms>` (e.g. `timeout_ms: 600000` for 10 minutes), OR Ctrl-C the wrapping process and re-run with a smaller scope.
+
+## v1.1+ AGENTS.md contract issues
+
+### `regenerate_contract` returns `hand_edit_detected: true`
+- **Cause:** content inside the `<!-- semantic-memory:begin contract -->` ... `<!-- end -->` markers was hand-edited.
+- **Fix (preserves your edits):** move the hand-edits to a Local Notes section OUTSIDE the markers, then re-run `regenerate_contract`.
+- **Fix (loses hand-edits):** `regenerate_contract({force: true})` overwrites.
+- **See:** [contract-guide.md](../operational/contract-guide.md)
+
+### `regenerate_contract` returns "AGENTS.md exists but does not contain the semantic-memory managed-block markers"
+- **Cause:** AGENTS.md exists but was hand-rolled (or written by another tool) without the managed markers.
+- **Fix (manual):** wrap your existing content with the markers: `<!-- semantic-memory:begin contract -->` ... `<!-- semantic-memory:end contract -->`. Next regenerate will overwrite that section but preserve everything outside.
+- **Fix (fresh start):** delete AGENTS.md and re-run `regenerate_contract`.
+
+### AGENTS.md keeps showing "old" tool list after upgrade
+- **Cause:** AGENTS.md is regenerable but doesn't auto-regenerate on upgrade.
+- **Fix:** `/contract refresh` (or `regenerate_contract({})`) — pulls the current tool inventory into the managed block.
+
+## v1.1+ drift detection issues
+
+### SessionStart silently emits drift output every time
+- **Cause:** there's actual drift. The block isn't noise — investigate.
+- **Fix:** read the `<vault-drift>` block. Run `/healthcheck` for full details. Each finding has remediation in [drift-detection.md](../operational/drift-detection.md).
+
+### `legacy_state_files` keeps firing after `migrate-state`
+- **Cause (one of):**
+  - Some tool restored the old `.sidekick-*` files (backup tool? IDE? shell history replay?)
+  - You're running multiple semantic-memory versions in parallel — v1.1.x and v1.2.x in the same project will write to different paths
+  - Migration didn't complete; check `<project>/.claude/.sidekick-*` to see what's still there
+- **Fix:** identify the source, then re-run `bin/semantic-memory migrate-state --force`.
+
+### `/healthcheck --fix` doesn't auto-fix anything
+- **Cause:** the `--fix` flag is documented in `commands/healthcheck.md` but **NOT implemented in v1.2.0**. It's planned for v1.2.x.
+- **Fix:** for now, run the per-finding remediation manually. See [drift-detection.md](../operational/drift-detection.md).
+
+## v1.2 state migration issues
+
+### `migrate-state` reports "conflict (both paths exist)"
+- **Cause:** both the legacy `.claude/.sidekick-mode` AND the new `.claude/.semantic-memory/mode` exist (typically because you ran the plugin in v1.2 mode before running migrate-state, OR a v1.1 install wrote to the old path while v1.2 was writing to the new).
+- **Inspect:** `cat .claude/.sidekick-mode` vs `cat .claude/.semantic-memory/mode` — usually the new path's content is correct.
+- **Fix:** `bin/semantic-memory migrate-state --force` (deletes old, preserves new). Or manually: pick the canonical path's content, restore it to the new path, delete the old.
+
+### `migrate-state` exits with `Error: Dynamic require of "fs" is not supported`
+- **Cause:** v1.2.0 had a bug where `require("node:fs")` was used inside the function. Caught and fixed.
+- **Fix:** upgrade to v1.2.0 (the published version has the fix). If you're on a development build from the bug window, `npm update` fetches the published v1.2.0.
+
+## v1.0 / v1.1 / v1.2 path inconsistency
+
+### "Why is the path called `.semantic-sidekick-index/` if the package is `semantic-memory`?"
+- **Cause:** intentional — v1.0 storage promise. Renaming the index dir would invalidate every existing user's index and force a model re-download.
+- **Fix:** none needed; the path retains the legacy name through all of v1.x. v2.0 will move it to `.claude/.semantic-memory/index/` with a transparent atomic migration.
+
+### "Why is `~/.semantic-sidekick/models/` the model cache path?"
+- **Same reason** — preserved through v1.x via the storage promise. v2.0 renames to `~/.semantic-memory/models/`.
+
+---
+
+## v0.x layered failure modes (carried into v1.x)
+
+The rest of this document is the original v0.x troubleshooting matrix. All entries still apply unless replaced above.
 
 ## Installation + plugin runtime
 
-### "plugin not found" after `/plugin install semantic-sidekick`
+### "plugin not found" after `/plugin install semantic-memory`
 - **Cause:** marketplace wasn't added, or the plugin name in the marketplace doesn't match.
 - **Check:** `cat .claude-plugin/marketplace.json` — the `plugins[0].name` must match what you ran `/plugin install` with.
 - **Fix:** `/plugin marketplace list` confirms registration; `/plugin marketplace add <url>` re-adds.
