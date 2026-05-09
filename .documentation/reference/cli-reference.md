@@ -5,15 +5,15 @@ domains: [reference]
 audience: [developers]
 tags: [cli, commands, flags, reference]
 status: active
-last_updated: '2026-04-23'
-version: '0.2.3'
-purpose: Every semantic-sidekick subcommand + flags + env vars + exit codes
+last_updated: '2026-05-09'
+version: '1.2.0'
+purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree and v1.2 migrate-state.
 load_priority: 9
 ---
 
-# CLI reference — `semantic-sidekick <subcommand>`
+# CLI reference — `semantic-memory <subcommand>`
 
-Binary: `node node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick` (or `semantic-sidekick` if globally linked). Hooks shell out to this exact binary.
+Binary: `node node_modules/@theglitchking/semantic-memory/bin/semantic-memory` (or `semantic-memory` if globally linked). The legacy `bin/semantic-sidekick` alias is preserved inside the package. Hooks shell out to either binary; both work identically.
 
 ## Subcommand overview
 
@@ -27,7 +27,9 @@ Binary: `node node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekic
 | `install-schema` | Setup | Write default vault.schema.yml |
 | `tools [name]` | Info | List or describe MCP tools |
 | `normalize-config` | Maintenance | Rewrite fragile .mcp.json npx forms |
-| `healthcheck` | Maintenance | Verify local install starts cleanly |
+| `healthcheck` | Maintenance | Verify local install + run drift detection (v1.1+ extended) |
+| `skills` (v1.1+) | Plugin install | Install/uninstall/preview skill bundles for non-Claude agents |
+| `migrate-state` (v1.2+) | Migration | Move legacy `.claude/.sidekick-*` files under `.claude/.semantic-memory/` |
 | `update` / `policy` | Plugin runtime | Inherited from `@theglitchking/claude-plugin-runtime` |
 
 All subcommands accept `--help`.
@@ -37,15 +39,18 @@ All subcommands accept `--help`.
 ## `serve` — start MCP server (default)
 
 ```bash
-semantic-sidekick --notes <path> [--reindex] [--stats] [--wait-for-ready] [--read-only]
-                                 [--model <name>] [--workers <n>] [--batch-size <n>]
-                                 [--no-quantized] [--no-watch]
+semantic-memory --notes <path> [--reindex] [--stats] [--wait-for-ready] [--read-only]
+                               [--model <name>] [--workers <n>] [--batch-size <n>]
+                               [--no-quantized] [--no-watch]
 ```
 
 - `--reindex` — force full reindex and exit.
 - `--stats` — print note/chunk/wikilink/tag counts and exit.
 - `--wait-for-ready` — block until index fully built (default: lazy; search tools return "Indexing in progress" until ready).
-- `--read-only` — suppress the 4 write tools + the 3 Phase 3 write tools (apply_patch, synthesize_note, ingest_source, regenerate_index, install_schema, update_frontmatter, manage_tags, rename_tag). Use for shared docs vaults.
+- `--read-only` — suppress write tools. In v1.2, read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2). Write-mode exposes 40.
+- `--model <name>` — override the embedding model (default: `all-MiniLM-L6-v2`). Switching models invalidates the existing index — startup detects mismatch and forces a reindex.
+- `--workers <n>` — number of worker threads for parallel embedding.
+- `--batch-size <n>` — batch size for embedding requests.
 
 **Default mode:** starts stdio MCP server, reads stdin, writes MCP JSON-RPC to stdout. Claude Code attaches via `.mcp.json`.
 
@@ -56,12 +61,12 @@ semantic-sidekick --notes <path> [--reindex] [--stats] [--wait-for-ready] [--rea
 Underpins the UserPromptSubmit + SessionStart hook injection.
 
 ```bash
-semantic-sidekick search "<query>" --notes <path> [--limit N] [--text-only] [--json]
+semantic-memory search "<query>" --notes <path> [--limit N] [--text-only] [--json]
 ```
 
 - `--limit <n>` — max results (default 8).
-- `--text-only` — skip ONNX embedder, use TextSearch only. **Faster cold start** but much noisier for natural-language queries. Currently unused in production hooks (after Phase 1 measured 4/8 positives vs 7/8 for hybrid).
-- `--json` — default is also JSON, this is a no-op flag for self-documentation.
+- `--text-only` — skip ONNX embedder, use TextSearch only. Faster cold start but noisier for natural-language queries.
+- `--json` — default is also JSON; flag exists for self-documentation.
 
 **Output:** JSON array of `{ path, title, score, snippet, mtime }`.
 **Uses parsed-doc cache** at `.semantic-sidekick-index/docs.cache.json` for ~0.7s latency on cache hit.
@@ -73,7 +78,7 @@ semantic-sidekick search "<query>" --notes <path> [--limit N] [--text-only] [--j
 Runs schema/provenance/stale/broken-links across the vault.
 
 ```bash
-semantic-sidekick lint --notes <path> [--rule <name>] [--json] [--strict]
+semantic-memory lint --notes <path> [--rule <name>] [--json] [--strict]
 ```
 
 - `--rule <name>` — limit output to one of `schema_violations`, `missing_provenance`, `stale`, `broken_links`.
@@ -88,80 +93,153 @@ semantic-sidekick lint --notes <path> [--rule <name>] [--json] [--strict]
 
 ---
 
-## `log-event`
+## `log-event` / `log-query` / `install-schema` / `tools`
 
-Append a structured event to `log.md`. Same shape as MCP `log_event`.
-
-```bash
-semantic-sidekick log-event --notes <path> --kind <name> --summary <text> [--payload <json>]
-```
-
-- `--kind` — required. Common: `ingest`, `synthesis`, `error`, `mode_change`, `decision`.
-- `--summary` — required, one-line.
-- `--payload` — optional JSON string. Parsed and attached as the payload field.
-
-**Output:** the parsed entry as JSON (one line).
-**Used by:** Phase 4.5 hook auto-logging (mode transitions, crashes).
-
----
-
-## `log-query`
-
-Read + filter log entries.
+Unchanged from v0.x. See the v0.x notes below for full details — these subcommands kept their original shape across the rebrand.
 
 ```bash
-semantic-sidekick log-query --notes <path> [--kind <name>] [--after <iso>] [--before <iso>] [--limit <n>]
+semantic-memory log-event --notes <path> --kind <name> --summary <text> [--payload <json>]
+semantic-memory log-query --notes <path> [--kind <name>] [--after <iso>] [--before <iso>] [--limit <n>]
+semantic-memory install-schema --notes <path> [--force]
+semantic-memory tools          # list all MCP tools by category
+semantic-memory tools <name>   # show args + examples for one tool
 ```
 
-**Output:** JSON array of `{ ts, kind, summary, payload? }`.
-**Used by:** SessionStart state-delta preload (queries last 14 days).
-
----
-
-## `install-schema`
-
-```bash
-semantic-sidekick install-schema --notes <path> [--force]
-```
-
-Writes `vault.schema.yml` with the default 4-type schema if not present. `--force` overwrites.
-
----
-
-## `tools [name]`
-
-```bash
-semantic-sidekick tools          # list all 33 MCP tools by category
-semantic-sidekick tools <name>   # show args + examples for one tool
-```
-
-Info-only. Does not require a vault path.
+`tools` lists 40 tools at v1.2.0 (was 33 at v0.2.x).
 
 ---
 
 ## `normalize-config`
 
 ```bash
-semantic-sidekick normalize-config [--dry-run]
+semantic-memory normalize-config [--dry-run]
 ```
 
-Rewrites `.mcp.json` entries from the fragile `npx --latest` form to stable `node ./node_modules/...` form. Backs up to `.mcp.json.bak` and verifies the binary starts before committing the rewrite. `--dry-run` prints proposed changes without writing.
+Rewrites `.mcp.json` entries from the fragile `npx --latest` form to stable `node ./node_modules/...` form. Backs up to `.mcp.json.bak` and verifies the binary starts before committing.
+
+In v1.1.1+, recognizes both legacy `@theglitchking/semantic-sidekick` and current `@theglitchking/semantic-memory` package paths.
 
 ---
 
-## `healthcheck`
+## `healthcheck` (extended in v1.1+)
 
 ```bash
-semantic-sidekick healthcheck
+semantic-memory healthcheck [--fast] [--json]
 ```
 
-Verifies the local install boots cleanly (`node <bin> --version`). Self-heals classic `ERR_MODULE_NOT_FOUND` from corrupted npx caches by clearing and retrying.
+Two-phase:
+
+1. **Install verification** (v0.x behavior, preserved):
+   - Detects fragile `.mcp.json` npx-form
+   - Smoke-tests the local bin (`--version`)
+   - Self-heals classic `ERR_MODULE_NOT_FOUND` from corrupted npx caches by clearing + retrying
+
+2. **Drift detection** (v1.1+ addition, runs in postAction):
+   - Without `--fast`: full audit (fast tier + slow tier including full vault lint)
+   - With `--fast`: fast tier only — file-system probes for `.mcp.json` server entry, hook registration, AGENTS.md managed blocks, session staleness, legacy state files
+   - With `--json`: emits structured JSON (drift findings array) instead of human text
+
+5-minute result cache at `<project>/.claude/.semantic-memory/healthcheck-cache.json`.
+
+`--fix` flag is documented in `commands/healthcheck.md` but **not yet implemented in v1.2.0** — planned for v1.2.x.
+
+**See:** [drift-detection.md](../operational/drift-detection.md)
+
+---
+
+## `skills` (v1.1+) — multi-agent skill bundler
+
+Subcommand tree for installing skill bundles into non-Claude agent runtimes (codex, copilot, pi). Existing Claude flow via npm `postinstall` + `claude-plugin-runtime` is unchanged.
+
+### `skills targets`
+
+Preview where bundles would land for one or more agents.
+
+```bash
+semantic-memory skills targets [--agent <name>...] [--scope <local|global>] [--project <path>]
+```
+
+- `--agent <name>` — repeatable; defaults to all 4 agents (claude, codex, copilot, pi)
+- `--scope` — `local` (project-relative) or `global` (`~/`-rooted), default `local`
+- `--project <path>` — project root for local-scope paths, default cwd
+
+**Output:** JSON array `[{ agent, scope, path }]`.
+
+### `skills install`
+
+```bash
+semantic-memory skills install --agent <name> [--scope <s>] [--project <p>] [--only <names>...] [--force]
+```
+
+- `--agent` — required: `codex`, `copilot`, `pi`. (Claude path is rejected — use `npm install` for the Claude flow.)
+- `--scope` — `local` or `global`, default `local`
+- `--only <names>...` — restrict to specific skill bundle names; default ships all 4 (vault-first, research-mode, outage-silence, semantic-first)
+- `--force` — overwrite even if drift is detected (manifest sha mismatch against existing install)
+
+Writes a manifest at `<target>/.semantic-memory-skill-manifest.json` with sha256s for stale detection on subsequent runs.
+
+### `skills uninstall`
+
+```bash
+semantic-memory skills uninstall --agent <name> [--scope <s>] [--project <p>]
+```
+
+Removes only manifest-tracked bundles. User-written skills outside the manifest are preserved. Manifest itself removed.
+
+### `skills list`
+
+```bash
+semantic-memory skills list
+```
+
+Lists shipped skill bundle names.
+
+**Agent target paths:**
+
+| Agent | Global | Local |
+|---|---|---|
+| claude | `~/.claude/skills/` | `.claude/skills/` |
+| codex | `~/.codex/skills/` | `.codex/skills/` |
+| copilot | `~/.copilot/skills/` | `.github/skills/` |
+| pi | `~/.pi/agent/skills/` | `.pi/skills/` |
+
+---
+
+## `migrate-state` (v1.2+) — move legacy state files
+
+Moves the three v1.1 state files from `.claude/.sidekick-*` to `.claude/.semantic-memory/`. Idempotent.
+
+```bash
+semantic-memory migrate-state [--dry-run] [--force] [--project <path>]
+```
+
+- `--dry-run` — preview without changing anything
+- `--force` — when both old and new paths exist (conflict), prefer new and delete old
+- `--project <path>` — project root, default cwd
+
+**Output:** JSON `{ migrated: [...], skipped: [...], conflicts: [...] }`.
+
+**Status semantics per file:**
+
+| Status | Meaning |
+|---|---|
+| `migrated` | Old path existed, new path didn't, atomic rename succeeded |
+| `skipped-no-source` | Neither path exists |
+| `skipped-already-migrated` | Old absent, new exists |
+| `conflict` | Both exist; refused without `--force` |
+| `resolved-by-force` | Both existed; `--force` deleted old, preserved new |
+
+**Exit code:** 1 when conflicts exist and `--force` was not passed (and not `--dry-run`).
+
+**See:** [state-migration.md](../operational/state-migration.md)
 
 ---
 
 ## Plugin runtime commands
 
-`update`, `policy`, and related commands come from `@theglitchking/claude-plugin-runtime`. See that package's README for the auto-update policy contract. TL;DR: `policy auto` enables silent upgrades; `policy nudge` (default) asks on SessionStart.
+`update`, `policy`, and related commands come from `@theglitchking/claude-plugin-runtime`. See that package's README for the auto-update policy contract.
+
+In v1.1.1+, `update` re-runs the v1.2-aware skill linker after `npm update`, so skills land at the new paths.
 
 ---
 
@@ -169,8 +247,29 @@ Verifies the local install boots cleanly (`node <bin> --version`). Self-heals cl
 
 | Variable | Effect |
 |---|---|
-| `SIDEKICK_DEBUG=1` | Hook logs decisions to stderr (visible under `ctrl+o` in Claude Code) |
-| `SIDEKICK_VAULT_PATH=<path>` | Overrides vault discovery for hooks (used by test runners) |
-| `CLAUDE_STOP_HOOK_ACTIVE=1` | Set by Claude Code when re-entering after a Stop-hook block. Hook respects this as a loop-guard |
-| `CLAUDE_PROJECT_DIR` | Set by Claude Code to the project root. Hooks default to this over `process.cwd()` |
-| `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir. Used in `hooks.json` command resolution |
+| `SIDEKICK_DEBUG=1` | Hook logs decisions to stderr (visible under `ctrl+o` in Claude Code). Same name kept across rebrand. |
+| `SIDEKICK_VAULT_PATH=<path>` | Overrides vault discovery for hooks (used by test runners). Same name kept. |
+| `CLAUDE_STOP_HOOK_ACTIVE=1` | Set by Claude Code when re-entering after a Stop-hook block. Hook respects this as a loop-guard. |
+| `CLAUDE_PROJECT_DIR` | Set by Claude Code to the project root. Hooks default to this over `process.cwd()`. |
+| `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir. Used in `hooks.json` command resolution. |
+
+The env var names retain `SIDEKICK_*` prefix for backwards compat. Don't break user shell configs that already set them.
+
+---
+
+## Exit code conventions
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Success (or no-op) |
+| 1 | Soft failure — `lint` errors, `migrate-state` unresolved conflicts, install verification failure |
+| 2 | Argument parsing error — invalid agent, invalid scope, missing required flag |
+
+---
+
+## See also
+
+- [hooks-reference.md](./hooks-reference.md) — what shells out to which CLI subcommand
+- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (40 tools)
+- [drift-detection.md](../operational/drift-detection.md) — `healthcheck` deep dive
+- [state-migration.md](../operational/state-migration.md) — `migrate-state` deep dive
