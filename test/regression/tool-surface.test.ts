@@ -46,9 +46,9 @@ describe("Regression: MCP tool surface (golden snapshots)", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("exposes the expected number of tools (write mode = 36)", async () => {
+  it("exposes the expected number of tools (write mode = 40)", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(36);
+    expect(tools.length).toBe(40);
   });
 
   it("matches the golden tool-surface snapshot", async () => {

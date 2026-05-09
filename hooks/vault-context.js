@@ -341,12 +341,53 @@ function emitStop(additionalContext, block) {
   process.stdout.write(JSON.stringify(out) + "\n");
 }
 
+function readActiveSession(projectRoot) {
+  const sessionPath = join(projectRoot, ".claude", ".semantic-memory", "session.json");
+  if (!existsSync(sessionPath)) return null;
+  try {
+    const state = JSON.parse(readFileSync(sessionPath, "utf8"));
+    if (state && typeof state.id === "string" && !state.closed_at) return state;
+    return null;
+  } catch (e) {
+    debug(`session.json parse failed: ${e.message}`);
+    return null;
+  }
+}
+
 async function handleStop(projectRoot) {
   const stopHookActive = process.env.CLAUDE_STOP_HOOK_ACTIVE === "1";
   if (stopHookActive) {
     // Already blocking — Claude is mid-response to our nudge. Clear and yield.
     resetCapturePending(projectRoot);
     emitStop("", false);
+    return;
+  }
+
+  // Session-aware branch (Phase 5). When a session is open at Stop time, prompt the
+  // agent to close it via session_finish (with or without verification waiver). This
+  // takes precedence over mode-specific capture prompts because a session represents
+  // a verification-gated work boundary that must be explicitly closed.
+  const session = readActiveSession(projectRoot);
+  if (session) {
+    const verifs = Array.isArray(session.verifications) ? session.verifications : [];
+    const lines = [
+      `<vault-session-close id="${session.id}" task="${session.task}" verifications="${verifs.length}">`,
+      `Session ${session.id} is still open: task=${JSON.stringify(session.task)}, verifications=${verifs.length}.`,
+      "",
+    ];
+    if (verifs.length > 0) {
+      lines.push("Recent verifications:");
+      for (const v of verifs.slice(-3)) {
+        lines.push(`- \`${v.cmd}\` → exit=${v.exit ?? "(killed)"} in ${v.duration_ms}ms`);
+      }
+      lines.push("");
+      lines.push(`Before ending: call \`mcp__semantic-vault__session_finish\` with a one-line summary. Verification recorded — finish will succeed without a waiver.`);
+    } else {
+      lines.push(`Before ending: either run \`mcp__semantic-vault__session_run\` with at least one verification command (tests/lint), or call \`mcp__semantic-vault__session_finish\` with \`verified: false\` and a \`reason\` waiving verification (e.g. doc-only edits). session_finish refuses without one of these paths.`);
+    }
+    lines.push(`</vault-session-close>`);
+    resetCapturePending(projectRoot);
+    emitStop(lines.join("\n"), true);
     return;
   }
 

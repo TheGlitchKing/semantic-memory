@@ -64,4 +64,9 @@ export const CURRENT_TOOL_INVENTORY: readonly ToolInventoryEntry[] = [
   // contract (Phase 3)
   { name: "regenerate_contract", description: "Generate or refresh AGENTS.md at the project root with a managed-block contract.", group: "contract" },
   { name: "inspect_contract", description: "Read-only inspection of AGENTS.md state.", group: "contract" },
+  // session (Phase 5)
+  { name: "session_start", description: "Open a verification-gated session for a multi-step task.", group: "session" },
+  { name: "session_run", description: "Run a verification command inside the active session, capture exit and tail.", group: "session" },
+  { name: "session_finish", description: "Close the active session — hard-gated on verifications unless explicitly waived.", group: "session" },
+  { name: "session_status", description: "Read-only inspection of the active session.", group: "session" },
 ];

@@ -25,6 +25,14 @@ export type {
   RegenerateContractOptions,
   RegenerateContractResult,
 } from "./agents-contract.js";
+export { SessionManager, deriveSessionDir, deriveProjectRoot } from "./session.js";
+export type {
+  SessionState,
+  SessionStatus,
+  VerificationRecord,
+  SessionStartOptions,
+  SessionFinishInput,
+} from "./session.js";
 export { loadSchema, validateNote, installDefaultSchema } from "./schema.js";
 export type { VaultSchema, LintFinding, Severity } from "./schema.js";
 

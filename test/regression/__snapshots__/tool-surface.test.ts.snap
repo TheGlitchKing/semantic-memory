@@ -34,6 +34,10 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "search_hybrid",
   "search_semantic",
   "search_text",
+  "session_finish",
+  "session_run",
+  "session_start",
+  "session_status",
   "synthesize_note",
   "synthesize_promote",
   "update_frontmatter",
@@ -926,6 +930,83 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "search_text",
   },
   {
+    "description": "Close the active session. HARD GATED: refused without recorded verifications unless verified=false is passed with a \`reason\` waiving verification (e.g. for prose-only edits). Deletes session state on success.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "description": "Required when verified=false. Why verification is not applicable to this task.",
+          "type": "string",
+        },
+        "summary": {
+          "description": "One-line description of what was accomplished. Appears in the closeout log entry.",
+          "type": "string",
+        },
+        "verified": {
+          "default": true,
+          "description": "Pass false to explicitly waive verification (requires \`reason\`).",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "summary",
+      ],
+      "type": "object",
+    },
+    "name": "session_finish",
+  },
+  {
+    "description": "Run a verification command inside the active session. Captures exit code, signal, duration, and a tail of stdout+stderr. Refused when no session is open. Default timeout: 5 minutes.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "description": "Shell command to run, e.g. 'npm test' or 'go test ./...'.",
+          "type": "string",
+        },
+        "timeout_ms": {
+          "description": "Override the default 5-minute timeout (in milliseconds).",
+          "exclusiveMinimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "cmd",
+      ],
+      "type": "object",
+    },
+    "name": "session_run",
+  },
+  {
+    "description": "Open a verification-gated session for a multi-step task. State persists at .claude/.semantic-memory/session.json. Refuses if a session is already open with a different task. Calling with the same task as an open session returns the existing id (idempotent).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "description": "Short description of the task being worked on. Recorded in session state and surfaced at session_finish.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "task",
+      ],
+      "type": "object",
+    },
+    "name": "session_start",
+  },
+  {
+    "description": "Read-only inspection of the active session — task, verifications, notes_touched, and a state label (active | stale | no_session). 'stale' indicates last_activity_at >24h ago.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "session_status",
+  },
+  {
     "description": "Turn a researched answer + sources into a new filed note with provenance frontmatter and auto-wikilinks. Builds a ChangeSet and applies it (dry-run supported). The primary path from query-answer to durable vault artifact. Pass \`proposal: true\` to file the result under \`proposals/<date>-<slug>.md\` with \`status: proposal\` for review-first workflows; \`synthesize_promote\` then moves it to the canonical destination.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -953,6 +1034,11 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
         },
         "dry_run": {
           "default": false,
+          "type": "boolean",
+        },
+        "from_session": {
+          "default": false,
+          "description": "When true, pull defaults from the active session: prepend a verification summary to \`answer\`, default \`derived_from\` to session.notes_touched, and append session id+task to \`sources\`. No-op when no session is active.",
           "type": "boolean",
         },
         "proposal": {

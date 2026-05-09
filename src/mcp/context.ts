@@ -8,6 +8,7 @@ import { VectorIndex } from "../core/vector.js";
 import { TextSearch } from "../core/search-text.js";
 import { NoteCrud } from "../core/crud.js";
 import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
+import { SessionManager, deriveSessionDir } from "../core/session.js";
 import type { IndexedDocument, IndexState } from "../core/types.js";
 
 export interface ServerOptions {
@@ -41,6 +42,7 @@ export interface ServerContext {
   crud: NoteCrud;
   frontmatterManager: FrontmatterManager;
   tagManager: TagManager;
+  sessions: SessionManager;
 
   getDocuments(): IndexedDocument[];
   getDocByPath(): Map<string, IndexedDocument>;
@@ -75,6 +77,7 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
   const crud = new NoteCrud(notesPath);
   const frontmatterManager = new FrontmatterManager(notesPath);
   const tagManager = new TagManager(notesPath);
+  const sessions = new SessionManager(deriveSessionDir(notesPath));
 
   let documents: IndexedDocument[] = [];
   let docByPath = new Map<string, IndexedDocument>();
@@ -291,6 +294,7 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     crud,
     frontmatterManager,
     tagManager,
+    sessions,
     getDocuments: () => documents,
     getDocByPath: () => docByPath,
     getVectorIndex: () => vectorIndex,

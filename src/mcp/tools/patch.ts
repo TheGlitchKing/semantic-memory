@@ -61,6 +61,10 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
           payload: { tool: "apply_patch", errors: result.errors, rolled_back: result.rolledBack.length },
         }).catch(() => { /* never let logging failure mask the real error */ });
       }
+      if (result.ok && !args.dry_run) {
+        const touched = result.applied.map((o) => o.path);
+        await ctx.sessions.recordNotesTouched(touched).catch(() => {});
+      }
       return ctx.textResponse(JSON.stringify(result, null, 2));
     }
   );
@@ -84,15 +88,38 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       dry_run: z.boolean().optional().default(false),
       proposal: z.boolean().optional().default(false).describe("Write to proposals/<date>-<slug>.md with status:proposal instead of the canonical destination. Use for review-first workflows."),
       proposal_subdir: z.string().optional().describe("Override the proposal subdirectory (default 'proposals'). Useful for source segregation, e.g. 'proposals/research'."),
+      from_session: z.boolean().optional().default(false).describe("When true, pull defaults from the active session: prepend a verification summary to `answer`, default `derived_from` to session.notes_touched, and append session id+task to `sources`. No-op when no session is active."),
     },
     async (args) => {
+      // from_session: if requested AND a session is active, enrich the synthesis input
+      // with session context so the agent has fewer fields to specify by hand.
+      let answer = args.answer;
+      let derivedFrom = args.derived_from;
+      let sources = args.sources;
+      if (args.from_session) {
+        const session = await ctx.sessions.readActive();
+        if (session) {
+          const verifLines = session.verifications.map((v) =>
+            `- \`${v.cmd}\` → exit=${v.exit ?? "(killed)"} in ${v.duration_ms}ms`
+          );
+          if (verifLines.length > 0) {
+            answer = `${answer}\n\n## Session verifications (${session.id})\n\n${verifLines.join("\n")}\n`;
+          }
+          if ((!derivedFrom || derivedFrom.length === 0) && session.notes_touched.length > 0) {
+            derivedFrom = [...session.notes_touched];
+          }
+          const sessionTag = `session:${session.id} task:${session.task}`;
+          sources = sources ? [...sources, sessionTag] : [sessionTag];
+        }
+      }
+
       const preview = buildSynthesizeChangeSet({
         topic: args.topic,
-        answer: args.answer,
+        answer,
         suggested_path: args.suggested_path,
         type: args.type,
-        sources: args.sources,
-        derived_from: args.derived_from,
+        sources,
+        derived_from: derivedFrom,
         related_notes: args.related_notes,
         status: args.status,
         confidence: args.confidence,
@@ -112,11 +139,12 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
           payload: {
             path: preview.path,
             type: args.type,
-            sources: args.sources ?? [],
-            derived_from: args.derived_from ?? [],
+            sources: sources ?? [],
+            derived_from: derivedFrom ?? [],
             ...(preview.is_proposal && { is_proposal: true, proposed_target: preview.proposed_target }),
           },
         }).catch(() => {});
+        await ctx.sessions.recordNotesTouched([preview.path]).catch(() => {});
       } else if (!result.ok && !args.dry_run) {
         await logEvent(ctx.notesPath, {
           kind: "error",
@@ -188,6 +216,7 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
           summary: `promoted proposal ${preview.from} → ${preview.to}`,
           payload: { tool: "synthesize_promote", from: preview.from, to: preview.to },
         }).catch(() => {});
+        await ctx.sessions.recordNotesTouched([preview.to]).catch(() => {});
       }
       return ctx.textResponse(JSON.stringify({ preview: { from: preview.from, to: preview.to }, result }, null, 2));
     }
