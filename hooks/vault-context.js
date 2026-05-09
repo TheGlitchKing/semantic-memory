@@ -305,8 +305,96 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
   const searchBlock = hits && hits.length > 0 ? formatContextBlock("sessionstart", query, hits) : "";
   const stateBlock = formatStateDeltaBlock(sinceIso, recentEntries);
 
-  const parts = [stateBlock, searchBlock].filter(Boolean);
+  // Phase 8 (drift detection): inline fast-tier check. Hard requirements: <100ms total,
+  // fail open, silent on healthy installs. Caching via mtime stat is light enough that
+  // we don't need a separate cache file for the JS-side path.
+  const driftBlock = await fastDriftCheck(projectRoot).catch((err) => {
+    debug(`drift check failed: ${err?.message || err}`);
+    return "";
+  });
+
+  const parts = [driftBlock, stateBlock, searchBlock].filter(Boolean);
   emit("SessionStart", parts.join("\n\n"));
+}
+
+/**
+ * Fast-tier drift check for the SessionStart hook. Pure JS for zero spawn cost.
+ * Surfaces a one-block warning ONLY when at least one drift signal fires; healthy
+ * installs return "" and the hook stays silent.
+ *
+ * Checks:
+ *   - .mcp.json server entry presence
+ *   - hook registration in .claude/settings.json (SessionStart, UserPromptSubmit, Stop)
+ *   - skill manifests across global + local agent dirs (presence + version)
+ *   - AGENTS.md managed-block markers (if file exists)
+ *   - session staleness (>24h since last_activity_at on an open session)
+ *
+ * Heavy work (full vault lint, code-symbol drift) is reserved for the manual
+ * `/healthcheck` command; this auto path stays cheap.
+ */
+async function fastDriftCheck(projectRoot) {
+  const findings = [];
+  // .mcp.json
+  try {
+    const mcpPath = join(projectRoot, ".mcp.json");
+    if (existsSync(mcpPath)) {
+      const data = JSON.parse(readFileSync(mcpPath, "utf8"));
+      const servers = (data && data.mcpServers) || {};
+      const hasEntry = Object.keys(servers).some((k) => k === "semantic-vault" || k === "semantic-sidekick" || k === "semantic-memory");
+      if (!hasEntry) findings.push({ check: "mcp_json_entry", summary: ".mcp.json has no semantic-* server entry" });
+    }
+  } catch (e) { debug(`mcp check threw: ${e.message}`); }
+
+  // hook registration
+  try {
+    const settings = join(projectRoot, ".claude", "settings.json");
+    if (existsSync(settings)) {
+      const data = JSON.parse(readFileSync(settings, "utf8"));
+      const hooks = (data && data.hooks) || {};
+      const required = ["SessionStart", "UserPromptSubmit", "Stop"];
+      const missing = required.filter((e) => !Array.isArray(hooks[e]) || hooks[e].length === 0);
+      if (missing.length > 0) findings.push({ check: "hook_registration", summary: `missing hook events: ${missing.join(", ")}` });
+    }
+  } catch (e) { debug(`hook check threw: ${e.message}`); }
+
+  // AGENTS.md managed-block (warn only when file exists but markers are absent)
+  try {
+    const agents = join(projectRoot, "AGENTS.md");
+    if (existsSync(agents)) {
+      const raw = readFileSync(agents, "utf8");
+      if (!raw.includes("<!-- semantic-memory:begin contract -->") || !raw.includes("<!-- semantic-memory:end contract -->")) {
+        findings.push({ check: "agents_contract", summary: "AGENTS.md exists but lacks managed-block markers" });
+      }
+    }
+  } catch (e) { debug(`agents check threw: ${e.message}`); }
+
+  // session staleness
+  try {
+    const sessPath = join(projectRoot, ".claude", ".semantic-memory", "session.json");
+    if (existsSync(sessPath)) {
+      const state = JSON.parse(readFileSync(sessPath, "utf8"));
+      if (state && !state.closed_at && typeof state.last_activity_at === "string") {
+        const ageMs = Date.now() - new Date(state.last_activity_at).getTime();
+        if (ageMs > 24 * 60 * 60 * 1000) {
+          findings.push({ check: "session_staleness", summary: `session ${state.id} stale (>${Math.round(ageMs / (60 * 60 * 1000))}h)` });
+        }
+      }
+    }
+  } catch (e) { debug(`session check threw: ${e.message}`); }
+
+  if (findings.length === 0) return "";
+
+  const lines = [
+    `<vault-drift count="${findings.length}">`,
+    `⚠️  semantic-memory: ${findings.length} drift issue${findings.length === 1 ? "" : "s"} detected`,
+  ];
+  for (const f of findings.slice(0, 5)) {
+    lines.push(`  ⚠ ${f.check}: ${f.summary}`);
+  }
+  if (findings.length > 5) lines.push(`  …and ${findings.length - 5} more`);
+  lines.push(`Run /healthcheck for details, or /healthcheck --fix to auto-fix safe items.`);
+  lines.push(`</vault-drift>`);
+  return lines.join("\n");
 }
 
 function formatStateDeltaBlock(sinceIso, entries) {

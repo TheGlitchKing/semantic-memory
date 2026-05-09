@@ -33,6 +33,14 @@ export type {
   SessionStartOptions,
   SessionFinishInput,
 } from "./session.js";
+export { runHealthcheck, formatDriftBanner, filterToDrift } from "./healthcheck.js";
+export type {
+  Tier as HealthcheckTier,
+  Severity as HealthcheckSeverity,
+  DriftFinding,
+  HealthcheckResult,
+  HealthcheckOptions,
+} from "./healthcheck.js";
 export { loadSchema, validateNote, installDefaultSchema } from "./schema.js";
 export type { VaultSchema, LintFinding, Severity } from "./schema.js";
 
