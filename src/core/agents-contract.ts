@@ -157,7 +157,7 @@ function buildManagedBlock(opts: RegenerateContractOptions): string {
   lines.push("- Markdown is canonical. The vault under `.claude/.vault/` (or wherever `--notes` points) is the source of truth.");
   lines.push("- Indexes (vector / graph / FTS) are derived state — rebuildable via `reindex` without losing knowledge.");
   lines.push("- Provenance frontmatter is required for `note`/`decision`/`gotcha` types — `sources` (external) or `derived_from` (internal).");
-  lines.push("- Mode router lives at `.claude/.sidekick-mode`; explicit `/mode` is ground truth.");
+  lines.push("- Mode router lives at `.claude/.semantic-memory/mode` (legacy `.claude/.sidekick-mode` still readable through v1.x); explicit `/mode` is ground truth.");
   lines.push("");
 
   lines.push(END_MARKER);

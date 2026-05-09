@@ -15,6 +15,7 @@ import {
   type AgentName,
   type Scope,
 } from "./skills.js";
+import { migrateState } from "./migrate-state.js";
 
 const require_ = createRequire(import.meta.url);
 const { version } = require_("../../package.json") as { version: string };
@@ -810,6 +811,36 @@ skillsCmd
     const sourceRoot = findSourceRoot();
     const shipped = await listShippedSkills(sourceRoot);
     console.log(JSON.stringify(shipped.map((s) => s.name), null, 2));
+  });
+
+// --- State migration (Phase 3, v1.2) ---
+
+program
+  .command("migrate-state")
+  .description(
+    "Move legacy .claude/.sidekick-* state files to .claude/.semantic-memory/. Idempotent. " +
+      "Conflicts (both paths exist) require --force. Pass --dry-run to preview without changes.",
+  )
+  .option("--dry-run", "Print the planned migration without renaming any files.", false)
+  .option(
+    "--force",
+    "When both old and new paths exist, prefer the new path and delete the old one.",
+    false,
+  )
+  .option("--project <path>", "Project root (default: cwd)", process.cwd())
+  .action((opts) => {
+    const result = migrateState({
+      projectRoot: opts.project,
+      dryRun: opts.dryRun === true,
+      force: opts.force === true,
+    });
+    console.log(JSON.stringify(result, null, 2));
+    if (result.conflicts.length > 0 && !opts.force && !opts.dryRun) {
+      console.error(
+        `\n${result.conflicts.length} conflict${result.conflicts.length === 1 ? "" : "s"} detected. Re-run with --force to resolve (keeps new path, deletes old).`,
+      );
+      process.exit(1);
+    }
   });
 
 program.parse();

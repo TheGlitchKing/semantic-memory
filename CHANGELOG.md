@@ -2,6 +2,43 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.2.0] - 2026-05-09 — State consolidation under .claude/.semantic-memory/
+
+Consolidates every transient state file under one namespace. Renames the legacy `.sidekick-*` files to drop the obsolete prefix. All legacy paths remain readable through v1.x via fallback; v2.0 will remove the fallback.
+
+### Changed (state file paths)
+
+The three v1.1-era state files in `hooks/vault-context.js` move:
+
+| Old path | New path |
+|---|---|
+| `.claude/.sidekick-mode` | `.claude/.semantic-memory/mode` |
+| `.claude/.sidekick-fingerprints.json` | `.claude/.semantic-memory/fingerprints.json` |
+| `.claude/.sidekick-capture-pending.json` | `.claude/.semantic-memory/capture-pending.json` |
+
+Reads check the new path first; if absent, fall back to the old path. Writes always go to the new path. The `bin/semantic-memory migrate-state` command does the explicit move for users who want the legacy files cleaned up immediately.
+
+`session.json` and `healthcheck-cache.json` were already correctly placed under `.claude/.semantic-memory/` since v1.1 — no change.
+
+### Added
+
+- **`bin/semantic-memory migrate-state`** — one-shot CLI command that atomically moves the three legacy state files. Idempotent. `--dry-run` previews; `--force` resolves conflicts (when both old and new exist) by preferring the new path and deleting the old.
+- **`legacy_state_files` healthcheck finding** — fast-tier check that detects legacy `.sidekick-*` files and surfaces a `warn` with a pointer to `migrate-state`. Pure read-only detection; never auto-migrates.
+
+### Backwards compatibility
+
+Three statements that remain true after v1.2.0 ships:
+
+1. **All legacy paths continue to be readable through v1.x.** Users who never run `migrate-state` see no behavioral change.
+2. **No state files are silently moved or deleted.** Migration is opt-in via `bin/semantic-memory migrate-state`; healthcheck only warns.
+3. **v2.0 will remove the legacy-path read fallback** — committed in this CHANGELOG entry. Users have all of v1.x to migrate. Storage paths (`.semantic-sidekick-index/`, `~/.semantic-sidekick/models/`) are NOT affected by this change; those are preserved through v1.x per the v1.0 promise.
+
+### Tests
+
+- New: `test/unit/migrate-state.test.ts` (idempotency, dry-run, conflict refusal, force resolution)
+- Extended: `test/unit/healthcheck.test.ts` (legacy state file detection)
+- Updated: `test/phase4/mode-hook.test.ts` (verifies writes land at new path)
+
 ## [1.1.2] - 2026-05-09 — Add ROADMAP.md (docs-only)
 
 Adds a public-facing `ROADMAP.md` at the repo root tracking the committed near-term direction. Captures v1.2 (state consolidation, `/healthcheck --fix`, fresh-install CI smoke, code-symbol drift), v1.3 (confidence-decay), and v2.0 (close the migration window — remove deprecation shims, move the vector index out of the vault, drop legacy fallbacks). Also documents what's deferred and what we've actively decided NOT to ship.
