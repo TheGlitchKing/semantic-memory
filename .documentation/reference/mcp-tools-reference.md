@@ -1,25 +1,42 @@
 ---
-title: MCP Tools Reference (33 tools)
+title: MCP Tools Reference (40 tools)
 tier: reference
 domains: [reference]
 audience: [developers]
 tags: [mcp, tools, api, reference, tools-catalog]
 status: active
-last_updated: '2026-04-23'
-version: '0.2.3'
-purpose: All 33 MCP tools by category with args, use-when/skip-when guidance
+last_updated: '2026-05-09'
+version: '1.2.0'
+purpose: All 40 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools and the v1.1 deprecation shims.
 load_priority: 9
 ---
 
 # MCP tools reference
 
-> 33 tools served by the `semantic-sidekick` MCP server over stdio. When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>`.
+> 40 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode. When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
 
-Tools fall into 10 categories. Write tools are gated by the `--read-only` flag on the server; read tools are always available.
+Tools fall into 11 categories. Write tools are gated by the `--read-only` flag on the server; read tools are always available.
+
+## Surface delta vs v0.x
+
+This doc is current to v1.2.0. v0.x had 33 tools. v1.1.0 added 7:
+
+- `regenerate_contract` + `inspect_contract` (Phase 3 — AGENTS.md)
+- `synthesize_promote` (Phase 4 — proposal flow)
+- `session_start` + `session_run` + `session_finish` + `session_status` (Phase 5)
+
+v1.1.0 also marked 6 tools as deprecated; they remain callable through v1.x but will be removed in v2.0:
+
+- `find_schema_violations` → use `lint_vault({checks: ["schema"]})`
+- `find_missing_provenance` → use `lint_vault({checks: ["provenance"]})`
+- `find_stale` → use `lint_vault({checks: ["stale"]})`
+- `find_broken_links` → use `lint_vault({checks: ["broken_links"]})`
+- `read_multiple_notes` → use `read_note` in a loop
+- `rename_tag` → use `manage_tags({action: "rename", from, to})`
 
 ---
 
-## Search (4)
+## Search (4) — always available
 
 ### `search_semantic`
 Vector similarity search over chunk embeddings.
@@ -40,15 +57,16 @@ Wikilink + `related_docs` traversal around a concept.
 ### `search_hybrid` ⭐
 Semantic + graph rerank. **The default for most queries.**
 **Args:** `{ query, limit?=10, [date/status/tier/domain filters] }`
-**Notes:** Phase 1 activation hooks call this.
+**Notes:** SessionStart vault-context hook calls this.
 
 ## Read (3)
 
 ### `read_note`
 **Args:** `{ path }`. Returns full markdown content.
 
-### `read_multiple_notes`
-**Args:** `{ paths: string[] }`. Batch fetch — use when reading 2+ notes that `search_hybrid` surfaced.
+### `read_multiple_notes` 🚫 deprecated (v2.0 removal)
+**Args:** `{ paths: string[] }`. Batch fetch.
+**Migration:** call `read_note` in a loop, or batch via MCP-level batching.
 
 ### `list_notes`
 **Args:** `{ modifiedAfter?, modifiedBefore?, status?, tier?, domain? }`. Returns path + title + metadata + link counts.
@@ -67,7 +85,7 @@ Semantic + graph rerank. **The default for most queries.**
 ### `move_note`
 **Args:** `{ from, to }`. Updates wikilinks across the vault.
 
-## Patch / Synthesis (4) — Phase 2/3
+## Patch / Synthesis (5) — Phase 2/3 + v1.1 addition
 
 ### `apply_patch` ⭐
 Atomic multi-note ChangeSet with rollback.
@@ -84,12 +102,20 @@ Atomic multi-note ChangeSet with rollback.
 }
 ```
 **Returns:** `{ ok, applied, rolledBack, lint, errors, indexes_regenerated }`.
-**Side effect:** auto-regens `INDEX.md` in affected directories unless `regenIndexes: false`. Auto-logs `kind=error` on failure.
+**Side effect:** auto-regens `INDEX.md` in affected directories. Auto-logs `kind=error` on failure. **v1.1+:** records touched paths to active session.notes_touched.
 
 ### `synthesize_note` ⭐
 Turn an answer + sources into a filed note with provenance.
-**Args:** `{ topic, answer, suggested_path, type?="note", sources?, derived_from?, related_notes?, status?="active", confidence?="medium", decision_maker?, decided_on?, severity?, dry_run?=false }`
+**Args:** `{ topic, answer, suggested_path, type?="note", sources?, derived_from?, related_notes?, status?="active", confidence?="medium", decision_maker?, decided_on?, severity?, dry_run?=false, proposal?=false, proposal_subdir? }`
+**v1.1+ proposal mode:** when `proposal: true`, writes to `<proposal_subdir>/<YYYY-MM-DD>-<slug>.md` (default subdir `proposals/`) with `status: proposal` and `proposed_target` frontmatter recording the canonical destination. Use `synthesize_promote` to later move to canonical.
 **Side effect:** `kind=synthesis` entry on success, `kind=error` on failure.
+
+### `synthesize_promote` 🆕 v1.1+
+Move a reviewed proposal note to its canonical destination.
+**Args:** `{ proposal_path, target_path?, dry_run?=false }`
+**Behavior:** reads the proposal's frontmatter (must have `status: proposal`); strips proposal markers; restores `status: active`; atomically creates target + deletes proposal in one rollback-capable patch. `target_path` overrides the proposal's recorded `proposed_target`.
+**Refuses when:** the proposal note doesn't have `status: proposal` frontmatter (defensive — only proposal-flagged notes are eligible).
+**See:** [contract-guide.md / proposal flow](../operational/contract-guide.md), [sessions-guide.md](../operational/sessions-guide.md)
 
 ### `ingest_source`
 Source + extracted units → atomic ingest.
@@ -100,67 +126,120 @@ Source + extracted units → atomic ingest.
 Writes default `vault.schema.yml` to the vault root.
 **Args:** `{ force?=false }`.
 
-## Lint (5) — always available
+## Lint (5)
 
-### `find_schema_violations`
-Missing required fields, unknown types, enum mismatches. **Severity: error (blocks apply_patch).**
+### `lint_vault` ⭐
+Run lint rules across the vault. Default returns the full report.
+**Args:** `{ pathGlob?, checks? }`
+**v1.1+ checks filter:** when `checks: ["schema"|"provenance"|"stale"|"broken_links"][]` is provided, only the requested rules are returned in `byRule` and `findings`. Subsumes the four `find_*` tools below.
+**Returns:** `{ findings, byRule, counts, schemaPath }`.
 
-### `find_missing_provenance`
-Notes of type note/decision/gotcha with no `sources` and no `derived_from`. **Severity: warn.**
+### `find_schema_violations` 🚫 deprecated
+**Migration:** `lint_vault({checks: ["schema"]})`
 
-### `find_stale`
-`last_verified` older than `schema.lint.stale.max_age_days` (default 180). **Severity: warn.**
+### `find_missing_provenance` 🚫 deprecated
+**Migration:** `lint_vault({checks: ["provenance"]})`
 
-### `find_broken_links`
-`[[wikilinks]]` that don't match any note basename. Skips fenced + inline code. **Severity: warn.**
+### `find_stale` 🚫 deprecated
+**Migration:** `lint_vault({checks: ["stale"]})`
 
-### `lint_vault`
-Full report — all rules combined. Returns `{ findings, byRule, counts, schemaPath }`.
+### `find_broken_links` 🚫 deprecated
+**Migration:** `lint_vault({checks: ["broken_links"]})`
 
 All lint tools accept `{ pathGlob? }` to scope to a subset.
 
 ## Metadata (4)
 
-### `get_frontmatter` — `{ path }` — returns parsed YAML as JSON.
-### `update_frontmatter` — `{ path, fields }` — set fields; `null` value deletes.
-### `manage_tags` — `{ path, action: "add"|"remove"|"list", tags? }`.
-### `rename_tag` — `{ oldTag, newTag }` — vault-wide rename across frontmatter + inline.
+### `get_frontmatter` — always available
+`{ path }` — returns parsed YAML as JSON.
 
-## Graph (4)
+### `update_frontmatter` — read-only disables
+`{ path, fields }` — set fields; `null` value deletes.
 
-### `backlinks` — `{ path }` — notes that link TO this one.
-### `forwardlinks` — `{ path }` — notes this one links to.
+### `manage_tags` ⭐ — read-only disables
+`{ path, action: "add"|"remove"|"list"|"rename", tags?, from?, to? }`.
+**v1.1+ rename action:** when `action: "rename"`, requires `from` and `to` (no leading `#`); calls `tagManager.renameVaultWide`. `path` is ignored in rename mode.
+
+### `rename_tag` 🚫 deprecated — read-only disables
+**Migration:** `manage_tags({action: "rename", from, to})`
+
+## Graph (4) — always available
+
+### `backlinks` — `{ path, limit?=50 }` — notes that link TO this one.
+### `forwardlinks` — `{ path, limit?=50 }` — notes this one links to.
 ### `graph_path` — `{ from, to }` — shortest path via wikilinks.
 ### `graph_statistics` — `{}` — most-connected nodes, orphans, density.
 
 ## Log / Maintenance (3)
 
-### `log_event`
+### `log_event` — always available
 Append to `log.md`.
 **Args:** `{ kind, summary, payload? }`.
-**Common kinds:** `ingest`, `synthesis`, `error`, `mode_change`, `decision`, `incident`.
+**Common kinds:** `ingest`, `synthesis`, `error`, `mode_change`, `decision`, `incident`, `session`, `verify`, `migration`.
 
-### `log_query`
+### `log_query` — always available
 Read + filter entries.
 **Args:** `{ kind?, after?, before?, limit? }`.
 
-### `regenerate_index`
+### `regenerate_index` — read-only disables
 Force `INDEX.md` regen.
 **Args:** either `{ directory }` (single dir) or `{ paths: string[] }` (dedupe to affected dirs).
 
-## System (2)
+## System (2) — always available
 
 ### `get_stats`
 Vault + index stats: note count, chunks, embedding dims, graph density, model, indexedAt, state (ready/stale/indexing/empty).
 
-### `reindex`
+### `reindex` — actually a write op but no readOnly gate (rebuilds derived state)
 Force full reindex. Blocks until ready.
+
+## Contract (2) — 🆕 v1.1+ — read-only disables both
+
+### `regenerate_contract`
+Generate or refresh `<projectRoot>/AGENTS.md` with the managed-block contract.
+**Args:** `{ projectRoot?, force?=false }`
+**Behavior:** preserves Local Notes tail outside the markers. Refuses to overwrite hand-edits inside the managed block unless `force: true`. When AGENTS.md exists without managed-block markers, refuses with a clear error pointing to the recovery options.
+**Returns:** `{ path, written, hand_edit_detected?, preserved_local_notes_chars?, reason? }`.
+**See:** [contract-guide.md](../operational/contract-guide.md)
+
+### `inspect_contract`
+Read-only inspection of AGENTS.md state.
+**Args:** `{ projectRoot? }`
+**Returns:** `{ path, exists, has_managed_block, local_notes_chars }`.
+
+## Session (4) — 🆕 v1.1+ — read-only disables all four
+
+### `session_start`
+Open a verification-gated session.
+**Args:** `{ task: string }`
+**Behavior:** refuses if a session is already open with a different task. Same-task call returns existing id (idempotent reentry).
+**Returns:** `{ ok: true, id, reused? }` or `{ ok: false, error }`.
+**State:** writes `<project>/.claude/.semantic-memory/session.json`.
+
+### `session_run`
+Run a verification command inside the active session, capturing exit/duration/tail.
+**Args:** `{ cmd: string, timeout_ms?=300000 }`
+**Behavior:** spawns the command via shell. Captures up to ~4KB of stdout+stderr tail. Records to `session.verifications`. Refuses without an active session.
+**Returns:** `{ ok: true, record: { cmd, exit, signal, duration_ms, tail, at } }`.
+
+### `session_finish` ⭐
+Close the active session.
+**Args:** `{ summary: string, verified?=true, reason? }`
+**HARD GATE:** refuses without recorded verifications unless `verified: false` AND non-empty `reason`.
+**Behavior:** removes `session.json` on success. Logs `kind: session` event with the closing summary.
+**Returns:** `{ ok: true, closed: <full SessionState> }` or `{ ok: false, error }`.
+**See:** [sessions-guide.md](../operational/sessions-guide.md)
+
+### `session_status`
+Read-only inspection of the active session.
+**Args:** `{}`
+**Returns:** `SessionState & { state: "active" | "stale" | "no_session" }`. The `state` label reports `stale` when `last_activity_at` is >24h old.
 
 ---
 
 ## Idiom: read before you write
 
-Every tool that writes (create/update/delete/move/apply_patch/synthesize/ingest) has a corresponding read or dry-run path. The canonical pattern:
+Every tool that writes (create/update/delete/move/apply_patch/synthesize/ingest/promote) has a corresponding read or dry-run path. The canonical pattern:
 
 1. **Read** — `search_hybrid` + `read_note` to verify what's there.
 2. **Dry-run** — `apply_patch({..., dry_run: true})` or `synthesize_note({..., dry_run: true})` to preview. Returns the proposed lint findings without writing.
@@ -170,3 +249,12 @@ Every tool that writes (create/update/delete/move/apply_patch/synthesize/ingest)
 ## Idiom: cite what you read
 
 Every tool that returns notes also returns `path`. Always include the paths in your response to the user. The `vault-first` skill enforces this as a hard contract.
+
+## Idiom: session-bracketed work
+
+For multi-step work that ends in verification:
+
+1. `session_start({task})`
+2. ... `read_note`, `apply_patch`, `synthesize_note` (auto-records to `session.notes_touched`) ...
+3. `session_run({cmd: "npm test"})`, `session_run({cmd: "npm run lint"})`
+4. `session_finish({summary})` — hard-gated; refuses without verifications unless explicit waiver
