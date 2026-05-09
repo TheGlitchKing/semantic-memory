@@ -19,12 +19,17 @@ import {
 const require_ = createRequire(import.meta.url);
 const { version } = require_("../../package.json") as { version: string };
 
-const PKG_NAME = "@theglitchking/semantic-sidekick";
+const PKG_NAME = "@theglitchking/semantic-memory";
+const LEGACY_PKG_NAME = "@theglitchking/semantic-sidekick";
 
 function runRelink(cwd: string) {
-  const linker = join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "scripts", "link-skills.js");
-  const script = existsSync(linker) ? linker : resolve(process.cwd(), "scripts", "link-skills.js");
-  if (!existsSync(script)) {
+  const candidates = [
+    join(cwd, "node_modules", "@theglitchking", "semantic-memory", "scripts", "link-skills.js"),
+    join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "scripts", "link-skills.js"),
+    resolve(process.cwd(), "scripts", "link-skills.js"),
+  ];
+  const script = candidates.find((p) => existsSync(p));
+  if (!script) {
     console.error("link-skills.js not found — is the package installed?");
     return;
   }
@@ -36,8 +41,14 @@ function runRelink(cwd: string) {
 }
 
 function findLocalBin(cwd: string): string | null {
-  const p = join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick");
-  return existsSync(p) ? p : null;
+  const candidates = [
+    join(cwd, "node_modules", "@theglitchking", "semantic-memory", "bin", "semantic-memory"),
+    join(cwd, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return null;
 }
 
 function localBinArg(cwd: string): string | null {
@@ -64,7 +75,12 @@ function isNpxForm(entry: any): boolean {
   if (!entry || typeof entry !== "object") return false;
   const cmd = entry.command;
   const args = Array.isArray(entry.args) ? entry.args : [];
-  return cmd === "npx" && args.some((a: unknown) => typeof a === "string" && a.includes(PKG_NAME));
+  return (
+    cmd === "npx" &&
+    args.some(
+      (a: unknown) => typeof a === "string" && (a.includes(PKG_NAME) || a.includes(LEGACY_PKG_NAME))
+    )
+  );
 }
 
 function isLocalForm(entry: any): boolean {
@@ -73,7 +89,12 @@ function isLocalForm(entry: any): boolean {
   const args = Array.isArray(entry.args) ? entry.args : [];
   return (
     cmd === "node" &&
-    args.some((a: unknown) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-sidekick"))
+    args.some(
+      (a: unknown) =>
+        typeof a === "string" &&
+        (a.includes("node_modules/@theglitchking/semantic-memory") ||
+          a.includes("node_modules/@theglitchking/semantic-sidekick"))
+    )
   );
 }
 
@@ -257,7 +278,7 @@ const TOOL_CATEGORIES: Record<string, string[]> = {
 function printToolList() {
   console.log("\nSemantic Pages — 21 MCP Tools\n");
   console.log("Usage: These tools are available via MCP when the server is running.");
-  console.log("       Run `semantic-sidekick tools <name>` for details on a specific tool.\n");
+  console.log("       Run `semantic-memory tools <name>` for details on a specific tool.\n");
 
   for (const [category, tools] of Object.entries(TOOL_CATEGORIES)) {
     console.log(`  ${category}:`);
@@ -268,14 +289,14 @@ function printToolList() {
     console.log();
   }
 
-  console.log("Run `semantic-sidekick tools <tool-name>` for arguments and examples.");
+  console.log("Run `semantic-memory tools <tool-name>` for arguments and examples.");
 }
 
 function printToolDetail(name: string) {
   const tool = TOOL_HELP[name];
   if (!tool) {
     console.error(`Unknown tool: ${name}`);
-    console.error(`Run \`semantic-sidekick tools\` to see all available tools.`);
+    console.error(`Run \`semantic-memory tools\` to see all available tools.`);
     process.exit(1);
   }
 
@@ -496,8 +517,8 @@ program
 
 registerUpdateCommands(program, {
   packageName: PKG_NAME,
-  pluginName: "semantic-sidekick",
-  configFile: "semantic-sidekick.json",
+  pluginName: "semantic-memory",
+  configFile: "semantic-memory.json",
   onAfterUpdate: (cwd) => runRelink(cwd),
 });
 
@@ -522,8 +543,9 @@ program
     const bin = localBinArg(cwd);
     if (!bin) {
       console.error(
-        `no local install found at ./node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick.\n` +
-          `run 'npm install --save @theglitchking/semantic-sidekick' first, then re-run this command.`,
+        `no local install found at ./node_modules/@theglitchking/semantic-memory/bin/semantic-memory ` +
+          `(or the legacy semantic-sidekick path).\n` +
+          `run 'npm install --save @theglitchking/semantic-memory' first, then re-run this command.`,
       );
       process.exit(1);
     }
@@ -585,8 +607,8 @@ program
     const cwd = process.cwd();
     const bin = findLocalBin(cwd);
     if (!bin) {
-      console.error(`no local install at ./node_modules/@theglitchking/semantic-sidekick/bin/semantic-sidekick`);
-      console.error(`run 'npm install --save @theglitchking/semantic-sidekick' to install.`);
+      console.error(`no local install at ./node_modules/@theglitchking/semantic-memory/bin/semantic-memory (or legacy semantic-sidekick path)`);
+      console.error(`run 'npm install --save @theglitchking/semantic-memory' to install.`);
       process.exit(1);
     }
 
@@ -601,7 +623,7 @@ program
           `⚠️  .mcp.json uses the fragile npx-@latest form for: ${fragile.join(", ")}`,
         );
         console.warn(`   Rewrite to the stable form:`);
-        console.warn(`     npx --no @theglitchking/semantic-sidekick normalize-config`);
+        console.warn(`     npx --no @theglitchking/semantic-memory normalize-config`);
       }
     }
 

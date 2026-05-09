@@ -2,6 +2,34 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.1.1] - 2026-05-08 — Hotfix: complete the rebrand wiring
+
+v1.1.0 published with the rebrand-to-`semantic-memory` half-finished: the npm package, marketplace entry, and tool surface all moved to the new name, but the postinstall, SessionStart reconcile, slash commands, and CLI helpers were still hardcoded to the legacy `@theglitchking/semantic-sidekick` package path. Fresh `npm install @theglitchking/semantic-memory@1.1.0` installs failed to register hooks correctly and slash commands hit ancient code from the legacy npm package (still on the registry at 0.2.x).
+
+### Fixed
+
+- **Postinstall (`scripts/link-skills.js`)** — `runPostinstall` now passes `packageName: "@theglitchking/semantic-memory"`, `pluginName: "semantic-memory"`, and `hookCommand` pointing at the new node_modules path. Hooks now register correctly on fresh installs.
+- **SessionStart reconcile (`hooks/reconcile.js`)** — `findLocalBin` checks the rebranded package path first, falls back to the legacy path for machines mid-migration. `isOurEntry` recognizes both old and new shapes when removing stale `.mcp.json` entries.
+- **SessionStart hook (`hooks/session-start.js`)** — `runSessionStart` delegate now passes the new package name + plugin name + config file.
+- **vault-context hook (`hooks/vault-context.js`)** — vault path discovery now matches `semantic-memory` server entries in `.mcp.json` (was only matching `semantic-vault` and `semantic-sidekick`). CLI bin discovery prefers the new path with legacy fallback.
+- **Slash commands** — all 7 (`/healthcheck`, `/status`, `/normalize-config`, `/policy`, `/mode`, `/update`, `/relink`) now invoke `@theglitchking/semantic-memory` instead of the legacy package.
+- **CLI helpers (`src/cli/index.ts`)** — `PKG_NAME`, `findLocalBin`, `runRelink`, `isLocalForm` updated. Error messages reference the new path. `registerUpdateCommands` passes the new plugin name + config file.
+
+### Storage paths preserved (unchanged)
+
+- `<vault>/.semantic-sidekick-index/` — vector index location, kept for backwards-compat with existing v1.0.x indices
+- `~/.semantic-sidekick/models/` — model cache location, kept for backwards-compat
+
+These intentionally retain the legacy `semantic-sidekick` name in the path — renaming would invalidate every existing user's index and force a re-download of the embedding model. The path-name mismatch with the package name is a one-time cost; we eat it.
+
+### Backwards compatibility
+
+All legacy fallbacks preserved. Users with `@theglitchking/semantic-sidekick` still installed (from v0.x or v1.0 pre-rebrand) continue to work — `findLocalBin`, `runRelink`, hook discovery, and `isOurEntry` all check both paths. The DOCS_KEY entry name in `.mcp.json` stays as `"semantic-sidekick"` for existing-user compatibility.
+
+### How v1.1.0 slipped through
+
+Phase 9's automated validation ran tests against `createServer()` directly with in-memory MCP clients — it never simulated a fresh `npm install` from the published tarball. The bug only fires at install time and slash-command invocation time, both of which were on the manual-smoke-deferred list. The hotfix re-emphasizes that "manual smoke against an existing v1.0.x install" needs to happen BEFORE publish, not after.
+
 ## [1.1.0] - 2026-05-08 — brain-absorption
 
 Adapts four targeted strengths from `JimmyMcBride/brain` into semantic-memory: AGENTS.md contract artifact, hard-gated verification sessions, multi-agent skill bundler, distill/synthesize unification — plus a server.ts refactor that makes future additions cheap, a deprecation-shimmed tool consolidation, and an opt-in SessionStart drift-detection layer.

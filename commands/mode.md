@@ -1,12 +1,12 @@
 ---
-description: Set or query the active semantic-sidekick mode (vault-first | research | outage-silence)
+description: Set or query the active semantic-memory mode (vault-first | research | outage-silence)
 argument-hint: "[research|vault-first|outage-silence|status]"
 allowed-tools: Bash(cat:*), Bash(cp:*), Bash(test:*), Bash(node:*), Read, Write
 ---
 
-# /mode — semantic-sidekick mode control
+# /mode — semantic-memory mode control
 
-The user invoked `/mode $ARGUMENTS`. This is the explicit ground-truth override for the semantic-sidekick routing layer.
+The user invoked `/mode $ARGUMENTS`. This is the explicit ground-truth override for the semantic-memory routing layer.
 
 ## Your job
 

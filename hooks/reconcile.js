@@ -1,11 +1,11 @@
-// Plugin-specific SessionStart reconciliation for semantic-sidekick.
+// Plugin-specific SessionStart reconciliation for semantic-memory.
 //
 // Responsibilities (all conservative — the user's config always wins):
 //   1. Ensure <project>/.claude/.vault exists.
 //   2. If .mcp.json is missing a "semantic-vault" entry AND the package is
 //      installed locally, add one in the node-against-node_modules form.
 //      Existing entries (any shape) are preserved — if you want to rewrite
-//      a stale entry, run `npx --no @theglitchking/semantic-sidekick
+//      a stale entry, run `npx --no @theglitchking/semantic-memory
 //      normalize-config`.
 //   3. If hit-em-with-the-docs is enabled AND ./.documentation exists,
 //      conditionally add a read-only "semantic-sidekick" entry pointed at
@@ -15,14 +15,23 @@
 // Any write is preceded by a backup to .mcp.json.bak. Never writes the
 // `npx @latest` form — that shape is fragile (npx cache corruption causes
 // ERR_MODULE_NOT_FOUND) and was the root cause of the 0.10.0 bugfix.
+//
+// Package-name resolution (post-1.1.1):
+//   Prefer the rebranded `@theglitchking/semantic-memory`. Fall back to the
+//   legacy `@theglitchking/semantic-sidekick` if the new package isn't
+//   installed — supports machines mid-migration. The DOCS_KEY entry name
+//   stays "semantic-sidekick" for backwards-compat with existing .mcp.json
+//   entries; renaming it would orphan user state without offering a
+//   meaningful behavioral upgrade.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
-const PKG = "@theglitchking/semantic-sidekick";
+const PKG = "@theglitchking/semantic-memory";
+const LEGACY_PKG = "@theglitchking/semantic-sidekick";
 const VAULT_KEY = "semantic-vault";
-const DOCS_KEY = "semantic-sidekick";
+const DOCS_KEY = "semantic-sidekick"; // preserved for backwards-compat with existing .mcp.json entries
 
 function readJson(path, fallback = null) {
   try {
@@ -55,10 +64,24 @@ function hewtdEnabled(projectRoot) {
   return false;
 }
 
-/** Absolute path to the locally-installed bin script, or null. */
+/**
+ * Absolute path to the locally-installed bin script, or null.
+ *
+ * Prefers the rebranded @theglitchking/semantic-memory package. Falls back to
+ * the legacy @theglitchking/semantic-sidekick install for machines that
+ * haven't migrated yet.
+ */
 export function findLocalBin(projectRoot) {
-  const p = join(projectRoot, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick");
-  return existsSync(p) ? p : null;
+  const candidates = [
+    // Rebranded package (preferred)
+    join(projectRoot, "node_modules", "@theglitchking", "semantic-memory", "bin", "semantic-memory"),
+    // Legacy package (fallback for in-progress migrations)
+    join(projectRoot, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return null;
 }
 
 /** Returns the arg form that goes into .mcp.json for this project. */
@@ -82,6 +105,7 @@ function buildEntry(binArgStr, notesPath, extraArgs = []) {
  * Detect an entry as "one of ours" so we can safely remove it when the
  * condition that created it no longer holds. Matches both shapes we've ever
  * written: the legacy npx-form and the new node-against-node_modules form.
+ * Both rebranded and legacy package paths are recognized.
  */
 function isOurEntry(entry, notesPath) {
   if (!entry || typeof entry !== "object") return false;
@@ -90,11 +114,16 @@ function isOurEntry(entry, notesPath) {
   const argStr = args.map((a) => String(a)).join(" ");
 
   // Legacy npx form we shipped in 0.8.0 and prior SessionStart hooks.
-  if (cmd === "npx" && argStr.includes(PKG) && argStr.includes(notesPath)) return true;
+  if (cmd === "npx" && (argStr.includes(PKG) || argStr.includes(LEGACY_PKG)) && argStr.includes(notesPath)) return true;
   // Current node-against-node_modules form (0.10.0+).
   if (
     cmd === "node" &&
-    args.some((a) => typeof a === "string" && a.includes("node_modules/@theglitchking/semantic-sidekick")) &&
+    args.some(
+      (a) =>
+        typeof a === "string" &&
+        (a.includes("node_modules/@theglitchking/semantic-memory") ||
+          a.includes("node_modules/@theglitchking/semantic-sidekick"))
+    ) &&
     argStr.includes(notesPath)
   ) {
     return true;
@@ -126,7 +155,7 @@ export function reconcile(projectRoot) {
       let raw = "";
       try { raw = readFileSync(mcpPath, "utf8"); } catch {}
       if (raw.trim()) {
-        process.stderr.write(`semantic-sidekick hook: could not parse ${mcpPath}; leaving untouched\n`);
+        process.stderr.write(`semantic-memory hook: could not parse ${mcpPath}; leaving untouched\n`);
         return;
       }
     } else if (parsed && typeof parsed === "object") {

@@ -53,7 +53,7 @@ function findVaultPath(projectRoot) {
       const entries = data?.mcpServers || {};
       for (const [name, entry] of Object.entries(entries)) {
         if (!entry || typeof entry !== "object") continue;
-        if (name !== "semantic-vault" && name !== "semantic-sidekick") continue;
+        if (name !== "semantic-vault" && name !== "semantic-sidekick" && name !== "semantic-memory") continue;
         const args = Array.isArray(entry.args) ? entry.args : [];
         const i = args.indexOf("--notes");
         if (i >= 0 && i + 1 < args.length) {
@@ -71,9 +71,15 @@ function findVaultPath(projectRoot) {
 }
 
 function findCliBin(projectRoot) {
-  // Prefer local installed bin (when sidekick is a dependency)
-  const installed = join(projectRoot, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick");
-  if (existsSync(installed)) return installed;
+  // Prefer local installed bin. Try the rebranded package first; fall back to the
+  // legacy semantic-sidekick path for machines mid-migration.
+  const candidates = [
+    join(projectRoot, "node_modules", "@theglitchking", "semantic-memory", "bin", "semantic-memory"),
+    join(projectRoot, "node_modules", "@theglitchking", "semantic-sidekick", "bin", "semantic-sidekick"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
   // Dev fallback: this hook lives in <repo>/hooks/, the built CLI is at <repo>/dist/cli/index.js
   const dev = resolve(new URL("../dist/cli/index.js", import.meta.url).pathname);
   if (existsSync(dev)) return dev;
@@ -130,7 +136,7 @@ export function formatContextBlock(source, query, hits) {
   if (!hits || hits.length === 0) return "";
   const lines = [];
   lines.push(`<vault-context source="${source}" query="${escapeAttr(query)}">`);
-  lines.push(`The vault (semantic-sidekick) was proactively searched. Top hits:`);
+  lines.push(`The vault (semantic-memory) was proactively searched. Top hits:`);
   lines.push("");
   for (const h of hits.slice(0, 6)) {
     const score = typeof h.score === "number" ? h.score.toFixed(2) : "";
