@@ -15,7 +15,7 @@ export function registerReadTools(server: McpServer, ctx: ServerContext): void {
 
   server.tool(
     "read_multiple_notes",
-    "Batch read multiple notes in one call",
+    "[DEPRECATED — removed in v2.0.0; use read_note in a loop or via batched MCP calls] Batch read multiple notes in one call",
     { paths: z.array(z.string()) },
     async ({ paths }) => {
       const results = await ctx.crud.readMultiple(paths);

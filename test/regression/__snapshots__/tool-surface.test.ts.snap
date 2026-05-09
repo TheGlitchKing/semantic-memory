@@ -220,7 +220,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "delete_note",
   },
   {
-    "description": "Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['broken_links']})] Scan the vault for [[wikilinks]] that point to non-existent notes. Heavier than the other lints (cross-note check) but still metadata-only.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -234,7 +234,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_broken_links",
   },
   {
-    "description": "Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['provenance']})] Scan the vault for notes of types (note/decision/gotcha by default) that lack both sources and derived_from frontmatter. Warnings by default.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -248,7 +248,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_missing_provenance",
   },
   {
-    "description": "Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['schema']})] Scan the vault for schema violations — missing required fields, unknown types, enum mismatches. Errors block apply_patch when validate=true.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -262,7 +262,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "find_schema_violations",
   },
   {
-    "description": "Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
+    "description": "[DEPRECATED — removed in v2.0.0; use lint_vault({checks:['stale']})] Scan the vault for notes whose last_verified date is older than the schema's stale.max_age_days (default 180).",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -461,11 +461,24 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "install_schema",
   },
   {
-    "description": "Run all lint rules at once — returns full LintReport with findings grouped by rule.",
+    "description": "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass \`checks\` to filter to specific rules (schema, provenance, stale, broken_links) — when filtered, byRule contains only the requested rules.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "checks": {
+          "description": "Filter to specific lint rules. Omit for full report.",
+          "items": {
+            "enum": [
+              "schema",
+              "provenance",
+              "stale",
+              "broken_links",
+            ],
+            "type": "string",
+          },
+          "type": "array",
+        },
         "pathGlob": {
           "type": "string",
         },
@@ -559,7 +572,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "log_query",
   },
   {
-    "description": "Add, remove, or list tags on a note (frontmatter and inline)",
+    "description": "Add, remove, list, or rename tags on a note (frontmatter and inline). Use action='rename' with \`from\` and \`to\` to rename a tag vault-wide; \`path\` is ignored in that mode.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -569,7 +582,12 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
             "add",
             "remove",
             "list",
+            "rename",
           ],
+          "type": "string",
+        },
+        "from": {
+          "description": "For action='rename': the existing tag name (no leading #)",
           "type": "string",
         },
         "path": {
@@ -580,6 +598,10 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
             "type": "string",
           },
           "type": "array",
+        },
+        "to": {
+          "description": "For action='rename': the new tag name (no leading #)",
+          "type": "string",
         },
       },
       "required": [
@@ -612,7 +634,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "move_note",
   },
   {
-    "description": "Batch read multiple notes in one call",
+    "description": "[DEPRECATED — removed in v2.0.0; use read_note in a loop or via batched MCP calls] Batch read multiple notes in one call",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -680,7 +702,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "reindex",
   },
   {
-    "description": "Rename a tag across all notes in the vault",
+    "description": "[DEPRECATED — removed in v2.0.0; use manage_tags({action:'rename', from, to})] Rename a tag across all notes in the vault",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
