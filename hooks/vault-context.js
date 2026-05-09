@@ -12,7 +12,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -172,27 +172,74 @@ function sessionSeedQuery(projectRoot) {
   return parts.join(" ");
 }
 
+// State file path resolution (Phase 1, v1.2):
+//
+// Each transient state file has TWO paths during the v1.x deprecation window:
+//   - new path (canonical, written by all v1.2+ writers): .claude/.semantic-memory/<file>
+//   - old path (legacy, still readable for backwards compat): .claude/.sidekick-<file>
+//
+// Reads check the new path first; if absent, fall back to old. Writes always go to
+// the new path. This means: as soon as ANY write happens for a given state file, the
+// new path takes over and the old path becomes a relic. The explicit
+// `bin/semantic-memory migrate-state` command does the move in one shot for users
+// who want the legacy files cleaned up immediately.
+//
+// In v2.0, the legacy fallback read is removed. Users have all of v1.x to migrate.
+const STATE_FILES = {
+  mode: { new: [".semantic-memory", "mode"], old: [".sidekick-mode"] },
+  fingerprints: { new: [".semantic-memory", "fingerprints.json"], old: [".sidekick-fingerprints.json"] },
+  "capture-pending": { new: [".semantic-memory", "capture-pending.json"], old: [".sidekick-capture-pending.json"] },
+};
+
+/**
+ * Resolve the read and write paths for a named state file.
+ * Returns { newPath, oldPath, resolvedRead, writePath }.
+ *  - resolvedRead is newPath if it exists, else oldPath (for backwards-compat reads)
+ *  - writePath is always newPath (writes always go to the new location)
+ */
+function statePath(projectRoot, name) {
+  const entry = STATE_FILES[name];
+  if (!entry) throw new Error(`unknown state file: ${name}`);
+  const newPath = join(projectRoot, ".claude", ...entry.new);
+  const oldPath = join(projectRoot, ".claude", ...entry.old);
+  return {
+    newPath,
+    oldPath,
+    resolvedRead: existsSync(newPath) ? newPath : oldPath,
+    writePath: newPath,
+  };
+}
+
+function ensureStateDir(writePath) {
+  try { mkdirSync(dirname(writePath), { recursive: true }); } catch {}
+}
+
 function fingerprintPath(projectRoot) {
-  const dir = join(projectRoot, ".claude");
-  try { mkdirSync(dir, { recursive: true }); } catch {}
-  return join(dir, ".sidekick-fingerprints.json");
+  // Returns the canonical write path (Phase 2, v1.2). Read sites that need the
+  // legacy-aware path use `statePath(projectRoot, "fingerprints").resolvedRead`.
+  const { writePath } = statePath(projectRoot, "fingerprints");
+  ensureStateDir(writePath);
+  return writePath;
 }
 
 function capturePendingPath(projectRoot) {
-  const dir = join(projectRoot, ".claude");
-  try { mkdirSync(dir, { recursive: true }); } catch {}
-  return join(dir, ".sidekick-capture-pending.json");
+  // Returns the canonical write path. Read sites that need legacy-aware reads use
+  // `statePath(projectRoot, "capture-pending").resolvedRead`.
+  const { writePath } = statePath(projectRoot, "capture-pending");
+  ensureStateDir(writePath);
+  return writePath;
 }
 
 const VALID_MODES = new Set(["vault-first", "research", "outage-silence"]);
 
 function modePath(projectRoot) {
-  return join(projectRoot, ".claude", ".sidekick-mode");
+  // Returns the canonical write path. Read sites use the legacy-aware resolver.
+  return statePath(projectRoot, "mode").writePath;
 }
 
 function readMode(projectRoot) {
   try {
-    const m = readFileSync(modePath(projectRoot), "utf8").trim();
+    const m = readFileSync(statePath(projectRoot, "mode").resolvedRead, "utf8").trim();
     if (VALID_MODES.has(m)) return m;
   } catch {}
   return "vault-first";
@@ -201,9 +248,9 @@ function readMode(projectRoot) {
 function writeMode(projectRoot, mode) {
   if (!VALID_MODES.has(mode)) return;
   try {
-    const dir = join(projectRoot, ".claude");
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(modePath(projectRoot), mode);
+    const { writePath } = statePath(projectRoot, "mode");
+    ensureStateDir(writePath);
+    writeFileSync(writePath, mode);
   } catch (e) {
     debug(`mode write failed: ${e.message}`);
   }
@@ -233,16 +280,17 @@ function detectCaptureCue(prompt) {
 
 function addCapturePending(projectRoot, prompt, cueSource) {
   try {
-    const p = capturePendingPath(projectRoot);
+    const { resolvedRead, writePath } = statePath(projectRoot, "capture-pending");
+    ensureStateDir(writePath);
     let state = { items: [] };
-    try { state = JSON.parse(readFileSync(p, "utf8")); } catch {}
+    try { state = JSON.parse(readFileSync(resolvedRead, "utf8")); } catch {}
     if (!Array.isArray(state.items)) state.items = [];
     state.items.push({
       ts: new Date().toISOString(),
       cue: cueSource,
       excerpt: prompt.slice(0, 200),
     });
-    writeFileSync(p, JSON.stringify(state));
+    writeFileSync(writePath, JSON.stringify(state));
   } catch (e) {
     debug(`capture pending write failed: ${e.message}`);
   }
@@ -250,15 +298,16 @@ function addCapturePending(projectRoot, prompt, cueSource) {
 
 function resetCapturePending(projectRoot) {
   try {
-    const p = capturePendingPath(projectRoot);
-    writeFileSync(p, JSON.stringify({ items: [] }));
+    const { writePath } = statePath(projectRoot, "capture-pending");
+    ensureStateDir(writePath);
+    writeFileSync(writePath, JSON.stringify({ items: [] }));
   } catch {}
 }
 
 function readCapturePending(projectRoot) {
   try {
-    const p = capturePendingPath(projectRoot);
-    const state = JSON.parse(readFileSync(p, "utf8"));
+    const path = statePath(projectRoot, "capture-pending").resolvedRead;
+    const state = JSON.parse(readFileSync(path, "utf8"));
     return Array.isArray(state.items) ? state.items : [];
   } catch {
     return [];
@@ -272,17 +321,20 @@ function normalizeFingerprint(prompt) {
     .slice(0, 16);
 }
 
-function loadFingerprints(path) {
+function loadFingerprints(projectRoot) {
   try {
+    const path = statePath(projectRoot, "fingerprints").resolvedRead;
     return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return { recent: [] };
   }
 }
 
-function saveFingerprints(path, state) {
+function saveFingerprints(projectRoot, state) {
   try {
-    writeFileSync(path, JSON.stringify(state));
+    const { writePath } = statePath(projectRoot, "fingerprints");
+    ensureStateDir(writePath);
+    writeFileSync(writePath, JSON.stringify(state));
   } catch (e) {
     debug(`fingerprint save failed: ${e.message}`);
   }
@@ -553,8 +605,7 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
     emit("UserPromptSubmit", "");
     return;
   }
-  const fpPath = fingerprintPath(projectRoot);
-  const state = loadFingerprints(fpPath);
+  const state = loadFingerprints(projectRoot);
   const fp = normalizeFingerprint(prompt);
   const recent = Array.isArray(state.recent) ? state.recent : [];
   if (recent.includes(fp)) {
@@ -564,7 +615,7 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
   }
   const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", prompt], 30_000);
   state.recent = [fp, ...recent].slice(0, 10);
-  saveFingerprints(fpPath, state);
+  saveFingerprints(projectRoot, state);
   const cue = detectCaptureCue(prompt);
   if (cue) {
     addCapturePending(projectRoot, prompt, cue);

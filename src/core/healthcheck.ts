@@ -117,6 +117,7 @@ async function runFastTier(opts: HealthcheckOptions): Promise<DriftFinding[]> {
     checkIndexFreshness(opts.projectRoot, opts.vaultPath),
     checkSessionStaleness(opts.projectRoot),
     checkAgentsContract(opts.projectRoot),
+    checkLegacyStateFiles(opts.projectRoot),
     ...(await skillManifestChecks(opts.projectRoot)),
   ];
   const results = await Promise.all(checks.map((p) => p.catch((err) => failOpenWarn(err))));
@@ -264,6 +265,35 @@ async function checkSessionStaleness(projectRoot: string): Promise<DriftFinding 
   } catch {
     return null;
   }
+}
+
+async function checkLegacyStateFiles(projectRoot: string): Promise<DriftFinding | null> {
+  // Detect v1.1-and-earlier state files at .claude/.sidekick-*. v1.2 moved these to
+  // .claude/.semantic-memory/. The hook still reads them via fallback for backwards-
+  // compat, but they should be migrated explicitly so the legacy paths stop existing.
+  const legacy = [
+    ".sidekick-mode",
+    ".sidekick-fingerprints.json",
+    ".sidekick-capture-pending.json",
+  ];
+  const present: string[] = [];
+  for (const name of legacy) {
+    if (existsSync(join(projectRoot, ".claude", name))) {
+      present.push(name);
+    }
+  }
+  if (present.length === 0) {
+    return { check: "legacy_state_files", severity: "ok", summary: "no legacy state files" };
+  }
+  return {
+    check: "legacy_state_files",
+    severity: "warn",
+    summary: `${present.length} legacy state file${present.length === 1 ? "" : "s"} at .claude/.sidekick-*`,
+    detail:
+      `Files: ${present.join(", ")}. Run \`bin/semantic-memory migrate-state\` to move them under .claude/.semantic-memory/. ` +
+      `These files are still being read for backwards-compat through v1.x; the legacy fallback is removed in v2.0.`,
+    fixable_via: "none",
+  };
 }
 
 async function checkAgentsContract(projectRoot: string): Promise<DriftFinding | null> {

@@ -40,15 +40,18 @@ describe("Phase 4 mode hook behavior", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("SessionStart resets mode to vault-first", async () => {
+  it("SessionStart resets mode to vault-first (legacy state file present, write goes to new path)", async () => {
+    // Simulate an existing v1.1 user: legacy mode file at the old path.
     await writeFile(join(tempDir, ".claude", ".sidekick-mode"), "research", "utf-8");
     runHook(
       tempDir,
       { hook_event_name: "SessionStart", cwd: tempDir },
       { SIDEKICK_VAULT_PATH: vaultDir }
     );
-    const mode = await readFile(join(tempDir, ".claude", ".sidekick-mode"), "utf-8");
-    expect(mode).toBe("vault-first");
+    // v1.2 contract: writes always go to the new path, reads fall back to old.
+    // After the hook runs, the new path holds the canonical value.
+    const newMode = await readFile(join(tempDir, ".claude", ".semantic-memory", "mode"), "utf-8");
+    expect(newMode).toBe("vault-first");
   });
 
   it("UserPromptSubmit in outage-silence suppresses vault context", async () => {
@@ -87,7 +90,8 @@ describe("Phase 4 mode hook behavior", () => {
       },
       { SIDEKICK_VAULT_PATH: vaultDir }
     );
-    expect(existsSync(join(tempDir, ".claude", ".sidekick-capture-pending.json"))).toBe(true);
+    // v1.2: capture-pending state writes go to the new path under .semantic-memory/.
+    expect(existsSync(join(tempDir, ".claude", ".semantic-memory", "capture-pending.json"))).toBe(true);
 
     const { out } = runHook(
       tempDir,

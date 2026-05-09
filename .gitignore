@@ -36,9 +36,13 @@ skills/*-workspace/
 # Plugin runtime state file
 .claude/semantic-sidekick.json
 
-# Phase 1 activation hook runtime state
+# Phase 1 activation hook runtime state (legacy paths; readable through v1.x)
 .claude/.sidekick-fingerprints.json
 .claude/.sidekick-capture-pending.json
+
+# v1.2: state files consolidated under .claude/.semantic-memory/
+.claude/.semantic-memory/
+.claude/semantic-memory.json
 
 # Stale semantic-first symlink (points at npx cache — regenerated per machine)
 .claude/skills/semantic-first

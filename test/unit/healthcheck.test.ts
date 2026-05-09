@@ -113,6 +113,24 @@ describe("runHealthcheck — fast tier", () => {
     expect(drift.some((d) => d.check === "index_freshness")).toBe(true);
     expect(drift.find((d) => d.check === "index_freshness")?.fixable_via).toBe("reindex");
   });
+
+  it("does NOT flag legacy_state_files on a clean install", async () => {
+    const r = await runHealthcheck({ projectRoot: dir, tier: "fast", force: true });
+    const legacy = r.findings.find((f) => f.check === "legacy_state_files");
+    expect(legacy?.severity).toBe("ok");
+  });
+
+  it("flags legacy_state_files when .claude/.sidekick-* exist", async () => {
+    await mkdir(join(dir, ".claude"), { recursive: true });
+    await writeFile(join(dir, ".claude", ".sidekick-mode"), "research", "utf-8");
+    await writeFile(join(dir, ".claude", ".sidekick-fingerprints.json"), '{"recent":[]}', "utf-8");
+    const r = await runHealthcheck({ projectRoot: dir, tier: "fast", force: true });
+    const drift = filterToDrift(r);
+    const fnd = drift.find((d) => d.check === "legacy_state_files");
+    expect(fnd?.severity).toBe("warn");
+    expect(fnd?.summary).toMatch(/2 legacy state files/);
+    expect(fnd?.detail).toMatch(/migrate-state/);
+  });
 });
 
 describe("runHealthcheck — caching", () => {
