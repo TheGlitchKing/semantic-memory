@@ -2,6 +2,44 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [Unreleased] — v1.1.0 brain-absorption (in progress)
+
+> **Status:** in progress on `feat/v1.1-brain-absorption`. See `.planning/v11-brain-absorption/task_plan.md` for the full work plan.
+
+### Adding (planned)
+
+- **AGENTS.md contract artifact** — single versionable agent contract at the repo root, with managed-block markers (`<!-- semantic-memory:begin/end -->`). CLAUDE.md reduced to a stub pointer in same release.
+- **Session gate** — 4 new MCP tools (`session_start`, `session_run`, `session_finish`, `session_status`) for hard verification gating. State at `.claude/.semantic-memory/session.json`. Sessions are opt-in; `session_finish` refuses without verification unless explicitly waived.
+- **Distill ↔ synthesize_note unification** — `synthesize_note` gains `from_session` and `proposal` flags; new `synthesize_promote` tool moves reviewed proposals to canonical destinations.
+- **Multi-agent skill bundler** — `bin/semantic-memory skills install --agent <codex|copilot|pi>` opens skills to non-Claude agents. Existing Claude flow via `claude-plugin-runtime` is unchanged.
+- **Drift detection** — fast-tier auto-check on SessionStart (<100ms, fail-open, silent on healthy installs), full `/healthcheck` for manual deep audit, `--fix` flag for safe auto-fixes.
+
+### Refactored (no behavioral change)
+
+- `src/mcp/server.ts` (1039 lines, 33 tools in one file) split into per-domain modules under `src/mcp/tools/*.ts`. Tool surface unchanged, regression snapshots gate the change.
+
+### Deprecated (shimmed, removed in v2.0.0)
+
+- `find_schema_violations` → use `lint_vault({checks: ["schema"]})`
+- `find_missing_provenance` → use `lint_vault({checks: ["provenance"]})`
+- `find_stale` → use `lint_vault({checks: ["stale"]})`
+- `find_broken_links` → use `lint_vault({checks: ["broken_links"]})`
+- `read_multiple_notes` → use `read_note({paths: [...]})`
+- `rename_tag` → use `manage_tags({op: "rename"})`
+
+All deprecated tools remain callable in v1.1.x with `[DEPRECATED]` prefix in their tool descriptions.
+
+### Backwards-compatibility contract
+
+Four statements that remain true after v1.1.0 ships:
+
+1. Every existing MCP tool name remains callable — eliminated tools become deprecation shims.
+2. All hook output shapes are unchanged when no session is active and no drift exists.
+3. AGENTS.md generation is opt-in — existing repos see no new files until they ask.
+4. Drift detection is silent on healthy installs — auto-check adds <100ms latency and emits zero output when no drift is present.
+
+Storage layout (`.semantic-sidekick-index/`, `~/.semantic-sidekick/models/`) preserved per the v1.0 promise. No re-index, no model re-download required when upgrading from v1.0.x.
+
 ## [1.0.1] - 2026-05-08 — Republish (no functional changes)
 
 ### Republish only
