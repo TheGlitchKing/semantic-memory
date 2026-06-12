@@ -2,6 +2,19 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.2.1] - 2026-06-11 — Capture-cue false-positive fixes
+
+Fixes two classes of false positives in the Stop-hook capture nudge (`hooks/vault-context.js`), where the cue scanner over-fired and asked to synthesize moments that carried no new knowledge.
+
+### Fixed
+
+- **Conversational "gotcha" no longer fires the cue.** The `gotcha` cue was a bare-word match (`\bgotcha\b`), so filler acknowledgments like "Gotcha, ok…" tripped it. It now requires noun-context (`a/the gotcha`, `gotcha:`, `gotchas`, `gotcha is/was/here/with`). `workaround`/`hack` are unchanged.
+- **Quoted machinery no longer re-primes the cue.** Cue detection ran over the entire raw prompt, so pasting tool output back — especially this hook's own `<vault-capture-prompt>` block, which contains the words "gotcha"/"workaround"/"hack" and the cue regexes themselves — re-primed `capture-pending` in a self-referential loop. New `stripQuotedMachinery()` removes self-emitted `<vault-*>` blocks, fenced code, and inline-code spans before matching, so only the user's own prose is scanned.
+
+### Tests
+
+- Extended `test/phase4/mode-hook.test.ts` with four regression cases: conversational "gotcha" does not prime; noun-context "the gotcha is…" does; pasting a `<vault-capture-prompt>` block does not re-prime; and a real cue alongside fenced machinery still primes (the strip is surgical, not total).
+
 ## [1.2.0] - 2026-05-09 — State consolidation under .claude/.semantic-memory/
 
 Consolidates every transient state file under one namespace. Renames the legacy `.sidekick-*` files to drop the obsolete prefix. All legacy paths remain readable through v1.x via fallback; v2.0 will remove the fallback.

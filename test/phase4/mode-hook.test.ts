@@ -121,6 +121,91 @@ describe("Phase 4 mode hook behavior", () => {
     expect(reason).toContain("vault-capture-prompt");
   });
 
+  it("conversational 'gotcha' acknowledgment does NOT prime capture-pending", async () => {
+    // Regression: the bare-word /\bgotcha\b/ cue used to fire on filler
+    // acknowledgments. "Gotcha, ok…" is not new knowledge worth capturing.
+    runHook(
+      tempDir,
+      {
+        hook_event_name: "UserPromptSubmit",
+        prompt: "gotcha... ok. so commit the doc change, and then include per token validation.",
+        cwd: tempDir,
+      },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    const { out } = runHook(
+      tempDir,
+      { hook_event_name: "Stop", cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    // No cue → no pending → empty (non-blocking) Stop payload.
+    expect(out).toEqual({});
+  });
+
+  it("noun-context 'gotcha' (the gotcha is…) DOES prime capture-pending", async () => {
+    runHook(
+      tempDir,
+      {
+        hook_event_name: "UserPromptSubmit",
+        prompt: "the gotcha is that the upstream API silently truncates payloads over 1MB",
+        cwd: tempDir,
+      },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    const { out } = runHook(
+      tempDir,
+      { hook_event_name: "Stop", cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    expect(out.decision).toBe("block");
+    expect(out?.reason ?? "").toContain("vault-capture-prompt");
+  });
+
+  it("quoting the hook's own <vault-capture-prompt> output does NOT re-prime capture-pending", async () => {
+    // Regression: pasting tool output back (which contains the literal words
+    // gotcha/workaround/hack and the cue regexes) used to scan the quoted
+    // machinery and nag about its own nag — a self-referential loop.
+    const pastedNag = [
+      "Stop hook feedback:",
+      '<vault-capture-prompt count="1">',
+      "This session surfaced 1 capture-worthy moment (user prompts contained decision/gotcha/fix cues):",
+      "- cue `\\bgotcha\\b|\\bworkaround\\b|\\bhack\\b`: \"some earlier prompt\"",
+      "</vault-capture-prompt>",
+    ].join("\n");
+    runHook(
+      tempDir,
+      { hook_event_name: "UserPromptSubmit", prompt: pastedNag, cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    const { out } = runHook(
+      tempDir,
+      { hook_event_name: "Stop", cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    expect(out).toEqual({});
+  });
+
+  it("a real cue alongside pasted machinery still primes (strip is surgical, not total)", async () => {
+    const mixed = [
+      "the gotcha is the upstream API truncates payloads over 1MB.",
+      "```",
+      "ERROR: workaround applied, hack in place",
+      "```",
+    ].join("\n");
+    runHook(
+      tempDir,
+      { hook_event_name: "UserPromptSubmit", prompt: mixed, cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    const { out } = runHook(
+      tempDir,
+      { hook_event_name: "Stop", cwd: tempDir },
+      { SIDEKICK_VAULT_PATH: vaultDir }
+    );
+    expect(out.decision).toBe("block");
+    expect(out?.reason ?? "").toContain("vault-capture-prompt");
+  });
+
   it("Stop hook emits {} (not hookSpecificOutput) when no vault is found", async () => {
     // No SIDEKICK_VAULT_PATH set, no .mcp.json under cwd → findVaultPath returns null,
     // hook short-circuits before reaching handleStop.
