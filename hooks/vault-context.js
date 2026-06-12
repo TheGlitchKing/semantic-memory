@@ -267,13 +267,29 @@ const CAPTURE_CUES = [
   /\bbecause\b/i,
   /\bdecided\b|\bwe chose\b|\bthe decision\b/i,
   /\bturned out to be\b|\bthe bug was\b|\bthe fix was\b/i,
-  /\bgotcha\b|\bworkaround\b|\bhack\b/i,
+  // "gotcha" is also a common acknowledgment ("Gotcha, ok…") — require noun-context
+  // (a/the gotcha, gotcha:, gotchas, gotcha is/was/here/with) so bare filler doesn't misfire.
+  /\b(?:a|the|one|another)\s+gotcha\b|\bgotcha[:s]\b|\bgotcha (?:is|was|here|with)\b|\bworkaround\b|\bhack\b/i,
   /\bnew convention\b|\bfrom now on\b|\bgoing forward\b/i,
 ];
 
+// Cue detection must scan the user's own prose, NOT quoted machinery. Pasting
+// tool output back into the prompt — especially this hook's own <vault-*> blocks,
+// which literally contain the words "gotcha"/"workaround"/"hack" and the cue
+// regexes themselves — would otherwise re-prime capture-pending in a self-
+// referential loop. Strip self-emitted blocks, fenced code, and inline-code spans
+// before matching. (Unterminated blocks/fences from truncated pastes strip to EOL.)
+function stripQuotedMachinery(prompt) {
+  return prompt
+    .replace(/<vault-[a-z-]+[\s\S]*?(?:<\/vault-[a-z-]+>|$)/gi, " ")
+    .replace(/```[\s\S]*?(?:```|$)/g, " ")
+    .replace(/`[^`]*`/g, " ");
+}
+
 function detectCaptureCue(prompt) {
+  const prose = stripQuotedMachinery(prompt);
   for (const re of CAPTURE_CUES) {
-    if (re.test(prompt)) return re.source;
+    if (re.test(prose)) return re.source;
   }
   return null;
 }
