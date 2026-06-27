@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -193,6 +193,23 @@ async function checkMcpJsonEntry(projectRoot: string): Promise<DriftFinding | nu
   return { check: "mcp_json_entry", severity: "ok", summary: ".mcp.json server entry present" };
 }
 
+// Events the plugin registers through its own hooks/hooks.json (resolved via
+// CLAUDE_PLUGIN_ROOT). On a plugin-style install these live in the plugin, not
+// the project's .claude/settings.json, so they must count as registered.
+function pluginRegisteredHookEvents(): string[] {
+  try {
+    const root = process.env.CLAUDE_PLUGIN_ROOT;
+    if (!root) return [];
+    const hooksPath = join(root, "hooks", "hooks.json");
+    if (!existsSync(hooksPath)) return [];
+    const data = JSON.parse(readFileSync(hooksPath, "utf-8"));
+    const hooks = data?.hooks ?? {};
+    return Object.keys(hooks).filter((e) => Array.isArray(hooks[e]) && hooks[e].length > 0);
+  } catch {
+    return [];
+  }
+}
+
 async function checkHookRegistration(projectRoot: string): Promise<DriftFinding | null> {
   const settings = join(projectRoot, ".claude", "settings.json");
   if (!existsSync(settings)) return null;
@@ -200,10 +217,12 @@ async function checkHookRegistration(projectRoot: string): Promise<DriftFinding 
     const data = JSON.parse(await readFile(settings, "utf-8"));
     const hooks = data?.hooks ?? {};
     const required = ["SessionStart", "UserPromptSubmit", "Stop"];
+    const pluginEvents = pluginRegisteredHookEvents();
     const missing: string[] = [];
     for (const event of required) {
       const arr = hooks[event];
-      if (!Array.isArray(arr) || arr.length === 0) missing.push(event);
+      const inSettings = Array.isArray(arr) && arr.length > 0;
+      if (!inSettings && !pluginEvents.includes(event)) missing.push(event);
     }
     if (missing.length > 0) {
       return {

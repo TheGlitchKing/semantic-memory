@@ -2,6 +2,13 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.2.2] - 2026-06-27 — Plugin-aware hook-registration check + manifest version sync
+
+### Fixed
+
+- **`hook_registration` drift no longer false-positives on plugin-style installs.** The check (both the SessionStart fast path in `hooks/vault-context.js` and the CLI `checkHookRegistration` in `src/core/healthcheck.ts`) only inspected the project's `.claude/settings.json`. When semantic-memory is installed as a Claude Code plugin, its SessionStart/UserPromptSubmit/Stop hooks live in the plugin's own `hooks/hooks.json` (resolved via `CLAUDE_PLUGIN_ROOT`) and fire correctly, so the check warned about "missing" hooks that were in fact registered. Both sites now treat events declared in the plugin's `hooks/hooks.json` as registered. Npm-dependency installs (no `CLAUDE_PLUGIN_ROOT`) are unaffected and still require the hooks in `settings.json`.
+- **Plugin manifest version sync.** `.claude-plugin/plugin.json` was frozen at `1.0.1` while `package.json`, git tags, and `marketplace.json` advanced — Claude Code reads the plugin version from `plugin.json`, so `claude plugin update` always reported "already at latest (1.0.1)" and never pulled newer code. Bumped `plugin.json` to match, and corrected its stale `homepage`/`repository` URLs (they pointed at the old `semantic-sidekick` repo).
+
 ## [1.2.1] - 2026-06-11 — Capture-cue false-positive fixes
 
 Fixes two classes of false positives in the Stop-hook capture nudge (`hooks/vault-context.js`), where the cue scanner over-fired and asked to synthesize moments that carried no new knowledge.

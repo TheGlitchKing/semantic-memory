@@ -1,14 +1,14 @@
 {
   "name": "semantic-memory",
   "description": "Unified memory-layer plugin for Claude Code. One MCP server, multiple typed corpora (vault / code / plans / docs / research / project-map), unified cross-corpus knowledge graph, conditional tool registration, in-process drift detection, and human↔code translation. Rebrand of `semantic-sidekick` at v1.0.0 — see CHANGELOG for migration.",
-  "version": "1.0.1",
+  "version": "1.2.2",
   "author": {
     "name": "TheGlitchKing",
     "email": "theglitchking@users.noreply.github.com"
   },
   "license": "MIT",
-  "homepage": "https://github.com/TheGlitchKing/semantic-sidekick",
-  "repository": "https://github.com/TheGlitchKing/semantic-sidekick",
+  "homepage": "https://github.com/TheGlitchKing/semantic-memory",
+  "repository": "https://github.com/TheGlitchKing/semantic-memory",
   "keywords": [
     "mcp",
     "memory-layer",

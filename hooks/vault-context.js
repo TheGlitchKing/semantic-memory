@@ -406,6 +406,25 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
  * Heavy work (full vault lint, code-symbol drift) is reserved for the manual
  * `/healthcheck` command; this auto path stays cheap.
  */
+
+// Events the plugin registers through its own hooks/hooks.json (resolved via
+// CLAUDE_PLUGIN_ROOT). On a plugin-style install these live in the plugin, not
+// the project's .claude/settings.json, so they must count as registered.
+function pluginRegisteredHookEvents() {
+  try {
+    const root = process.env.CLAUDE_PLUGIN_ROOT;
+    if (!root) return [];
+    const hooksPath = join(root, "hooks", "hooks.json");
+    if (!existsSync(hooksPath)) return [];
+    const data = JSON.parse(readFileSync(hooksPath, "utf8"));
+    const hooks = (data && data.hooks) || {};
+    return Object.keys(hooks).filter((e) => Array.isArray(hooks[e]) && hooks[e].length > 0);
+  } catch (e) {
+    debug(`pluginRegisteredHookEvents threw: ${e.message}`);
+    return [];
+  }
+}
+
 async function fastDriftCheck(projectRoot) {
   const findings = [];
   // .mcp.json
@@ -426,7 +445,13 @@ async function fastDriftCheck(projectRoot) {
       const data = JSON.parse(readFileSync(settings, "utf8"));
       const hooks = (data && data.hooks) || {};
       const required = ["SessionStart", "UserPromptSubmit", "Stop"];
-      const missing = required.filter((e) => !Array.isArray(hooks[e]) || hooks[e].length === 0);
+      // Plugin-style installs register these via the plugin's own hooks/hooks.json
+      // (resolved through CLAUDE_PLUGIN_ROOT), not the project settings.json. Count
+      // those as registered so the check doesn't false-positive on plugin installs.
+      const pluginEvents = pluginRegisteredHookEvents();
+      const missing = required.filter(
+        (e) => (!Array.isArray(hooks[e]) || hooks[e].length === 0) && !pluginEvents.includes(e)
+      );
       if (missing.length > 0) findings.push({ check: "hook_registration", summary: `missing hook events: ${missing.join(", ")}` });
     }
   } catch (e) { debug(`hook check threw: ${e.message}`); }
