@@ -5,9 +5,9 @@ domains: [reference]
 audience: [developers]
 tags: [cli, commands, flags, reference]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
-purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree and v1.2 migrate-state.
+last_updated: '2026-07-10'
+version: '1.3.0'
+purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, and v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace).
 load_priority: 9
 ---
 
@@ -27,9 +27,11 @@ Binary: `node node_modules/@theglitchking/semantic-memory/bin/semantic-memory` (
 | `install-schema` | Setup | Write default vault.schema.yml |
 | `tools [name]` | Info | List or describe MCP tools |
 | `normalize-config` | Maintenance | Rewrite fragile .mcp.json npx forms |
-| `healthcheck` | Maintenance | Verify local install + run drift detection (v1.1+ extended) |
+| `healthcheck` | Maintenance | Verify local install + run drift detection; `--fix` (v1.3+) auto-applies safe fixes |
 | `skills` (v1.1+) | Plugin install | Install/uninstall/preview skill bundles for non-Claude agents |
 | `migrate-state` (v1.2+) | Migration | Move legacy `.claude/.sidekick-*` files under `.claude/.semantic-memory/` |
+| `decay-config` (v1.3+) | Info | Print the active confidence-decay config as JSON |
+| `decay-trace` (v1.3+) | Info | Print the decay calculation for one note as JSON |
 | `update` / `policy` | Plugin runtime | Inherited from `@theglitchking/claude-plugin-runtime` |
 
 All subcommands accept `--help`.
@@ -47,7 +49,7 @@ semantic-memory --notes <path> [--reindex] [--stats] [--wait-for-ready] [--read-
 - `--reindex` — force full reindex and exit.
 - `--stats` — print note/chunk/wikilink/tag counts and exit.
 - `--wait-for-ready` — block until index fully built (default: lazy; search tools return "Indexing in progress" until ready).
-- `--read-only` — suppress write tools. In v1.2, read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2). Write-mode exposes 40.
+- `--read-only` — suppress write tools. Read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2) — unchanged in v1.3 since `verify_note` is write-gated. Write-mode exposes 41 (v1.3+; was 40 in v1.2).
 - `--model <name>` — override the embedding model (default: `all-MiniLM-L6-v2`). Switching models invalidates the existing index — startup detects mismatch and forces a reindex.
 - `--workers <n>` — number of worker threads for parallel embedding.
 - `--batch-size <n>` — batch size for embedding requests.
@@ -105,7 +107,7 @@ semantic-memory tools          # list all MCP tools by category
 semantic-memory tools <name>   # show args + examples for one tool
 ```
 
-`tools` lists 40 tools at v1.2.0 (was 33 at v0.2.x).
+`tools` lists 41 tools at v1.3.0 (40 at v1.2.0, was 33 at v0.2.x).
 
 ---
 
@@ -121,10 +123,10 @@ In v1.1.1+, recognizes both legacy `@theglitchking/semantic-sidekick` and curren
 
 ---
 
-## `healthcheck` (extended in v1.1+)
+## `healthcheck` (extended in v1.1+, v1.3+)
 
 ```bash
-semantic-memory healthcheck [--fast] [--json]
+semantic-memory healthcheck [--fast] [--json] [--fix]
 ```
 
 Two-phase:
@@ -139,9 +141,19 @@ Two-phase:
    - With `--fast`: fast tier only — file-system probes for `.mcp.json` server entry, hook registration, AGENTS.md managed blocks, session staleness, legacy state files
    - With `--json`: emits structured JSON (drift findings array) instead of human text
 
-5-minute result cache at `<project>/.claude/.semantic-memory/healthcheck-cache.json`.
+**v1.3.0 fix:** drift detection now always runs. Previously, on a healthy install the command exited early right after the install smoke-test, so drift detection never fired — that early-exit was a bug and is now removed.
 
-`--fix` flag is documented in `commands/healthcheck.md` but **not yet implemented in v1.2.0** — planned for v1.2.x.
+**`--fix` (v1.3+):** after drift detection, auto-applies safe fixes for fixable findings, then re-runs detection to show the post-fix state. Combinable with `--fast` and `--json`.
+
+Safe fix actions (auto-applied):
+- `skill-link` — re-link skills
+- `mcp-reconcile` — reconcile `.mcp.json`
+- `reindex` — rebuild the vector index
+- `state-migrate` — run `migrate-state` for legacy `.sidekick-*` files
+
+Findings that touch user-authored content — stale notes, broken wikilinks, hand-edited `AGENTS.md` — are **reported for human review only**; `--fix` never auto-changes them.
+
+5-minute result cache at `<project>/.claude/.semantic-memory/healthcheck-cache.json`.
 
 **See:** [drift-detection.md](../operational/drift-detection.md)
 
@@ -235,6 +247,51 @@ semantic-memory migrate-state [--dry-run] [--force] [--project <path>]
 
 ---
 
+## `decay-config` (v1.3+) — print active confidence-decay config
+
+```bash
+semantic-memory decay-config --notes <path>
+```
+
+Prints the active confidence-decay config as JSON:
+
+```json
+{ "source": "defaults", "config": { "...": "..." } }
+```
+
+`source` is `"defaults"` when no `decay:` block is present in `vault.schema.yml`, or `"vault.schema.yml (overridden)"` when the vault supplies one.
+
+**See:** [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml)
+
+---
+
+## `decay-trace` (v1.3+) — debug one note's decay calculation
+
+```bash
+semantic-memory decay-trace <notePath> --notes <path>
+```
+
+Prints the decay calculation for a single note as JSON:
+
+```json
+{
+  "path": "...",
+  "type": "...",
+  "last_verified": "...",
+  "evergreen": false,
+  "multiplier": 0.87,
+  "age_days": 42,
+  "effective_half_life": 365,
+  "reason": "..."
+}
+```
+
+**Use when:** debugging why a note ranks where it does in `search_semantic`/`search_hybrid` results.
+
+**See:** [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml)
+
+---
+
 ## Plugin runtime commands
 
 `update`, `policy`, and related commands come from `@theglitchking/claude-plugin-runtime`. See that package's README for the auto-update policy contract.
@@ -270,6 +327,6 @@ The env var names retain `SIDEKICK_*` prefix for backwards compat. Don't break u
 ## See also
 
 - [hooks-reference.md](./hooks-reference.md) — what shells out to which CLI subcommand
-- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (40 tools)
+- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (41 tools)
 - [drift-detection.md](../operational/drift-detection.md) — `healthcheck` deep dive
 - [state-migration.md](../operational/state-migration.md) — `migrate-state` deep dive

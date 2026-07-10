@@ -1,25 +1,25 @@
 ---
-title: MCP Tools Reference (40 tools)
+title: MCP Tools Reference (41 tools)
 tier: reference
 domains: [reference]
 audience: [developers]
 tags: [mcp, tools, api, reference, tools-catalog]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
-purpose: All 40 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools and the v1.1 deprecation shims.
+last_updated: '2026-07-10'
+version: '1.3.0'
+purpose: All 41 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, and the v1.3 confidence-decay verify_note tool.
 load_priority: 9
 ---
 
 # MCP tools reference
 
-> 40 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode. When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
+> 41 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode (`verify_note` is write-gated, so read-only mode is unchanged at 21). When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
 
 Tools fall into 11 categories. Write tools are gated by the `--read-only` flag on the server; read tools are always available.
 
 ## Surface delta vs v0.x
 
-This doc is current to v1.2.0. v0.x had 33 tools. v1.1.0 added 7:
+This doc is current to v1.3.0. v0.x had 33 tools. v1.1.0 added 7:
 
 - `regenerate_contract` + `inspect_contract` (Phase 3 — AGENTS.md)
 - `synthesize_promote` (Phase 4 — proposal flow)
@@ -34,6 +34,8 @@ v1.1.0 also marked 6 tools as deprecated; they remain callable through v1.x but 
 - `read_multiple_notes` → use `read_note` in a loop
 - `rename_tag` → use `manage_tags({action: "rename", from, to})`
 
+v1.3.0 added 1 tool: `verify_note` (confidence-decay Phase — resets a note's decay clock). No deprecations in v1.3.0.
+
 ---
 
 ## Search (4) — always available
@@ -43,6 +45,7 @@ Vector similarity search over chunk embeddings.
 **Args:** `{ query, limit?=10, modifiedAfter?, modifiedBefore?, status?, tier?, domain? }`
 **Use when:** conceptual/semantic queries ("authentication flows").
 **Skip when:** looking for exact strings — prefer `search_text`.
+**v1.3+ confidence decay:** results are down-weighted by time since `last_verified`. Decayed results carry a `decay: { multiplier, age_days, effective_half_life, reason }` block. See [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml).
 
 ### `search_text`
 BM25-ish keyword search over full note content.
@@ -58,6 +61,7 @@ Wikilink + `related_docs` traversal around a concept.
 Semantic + graph rerank. **The default for most queries.**
 **Args:** `{ query, limit?=10, [date/status/tier/domain filters] }`
 **Notes:** SessionStart vault-context hook calls this.
+**v1.3+ confidence decay:** same decay down-weighting and `decay` block as `search_semantic`. `search_text`/`search_graph` are unaffected — decay only applies to the two ranked/semantic tools.
 
 ## Read (3)
 
@@ -85,7 +89,7 @@ Semantic + graph rerank. **The default for most queries.**
 ### `move_note`
 **Args:** `{ from, to }`. Updates wikilinks across the vault.
 
-## Patch / Synthesis (5) — Phase 2/3 + v1.1 addition
+## Patch / Synthesis (6) — Phase 2/3 + v1.1 + v1.3 additions
 
 ### `apply_patch` ⭐
 Atomic multi-note ChangeSet with rollback.
@@ -125,6 +129,14 @@ Source + extracted units → atomic ingest.
 ### `install_schema`
 Writes default `vault.schema.yml` to the vault root.
 **Args:** `{ force?=false }`.
+
+### `verify_note` 🆕 v1.3+
+Stamp a note as freshly re-confirmed, resetting its confidence-decay clock.
+**Args:** `{ path: string }`
+**Behavior:** stamps the note's `last_verified` frontmatter to today's date (`YYYY-MM-DD`) without touching content or any other frontmatter field. Logs a `verify` event to `log.md`.
+**Returns:** `{ path, last_verified, decay_multiplier }`.
+**Use when:** you've just re-confirmed a note is still true and want it to rank fresh again in `search_semantic`/`search_hybrid`.
+**See:** [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml).
 
 ## Lint (5)
 

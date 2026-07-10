@@ -83,9 +83,10 @@ load_priority: 9
   - Migration didn't complete; check `<project>/.claude/.sidekick-*` to see what's still there
 - **Fix:** identify the source, then re-run `bin/semantic-memory migrate-state --force`.
 
-### `/healthcheck --fix` doesn't auto-fix anything
-- **Cause:** the `--fix` flag is documented in `commands/healthcheck.md` but **NOT implemented in v1.2.0**. It's planned for v1.2.x.
-- **Fix:** for now, run the per-finding remediation manually. See [drift-detection.md](../operational/drift-detection.md).
+### `/healthcheck --fix` left a finding unfixed
+- **Cause:** `--fix` (shipped in v1.2.3) only auto-applies **safe** fixes — re-link skills, reconcile `.mcp.json`, reindex, migrate state. Findings that touch user-authored content (`agents_contract` hand-edits, `session_staleness`, `lint_vault` stale/broken-link findings) are deliberately reported for human review, never auto-changed.
+- **Fix:** apply the reported per-finding remediation manually. See [drift-detection.md](../operational/drift-detection.md#auto-fix-healthcheck---fix--shipped-in-v123).
+- **Note:** if `--fix` appears to do *nothing at all* on a pre-1.2.3 install, it's genuinely unimplemented there — upgrade to ≥1.2.3.
 
 ## v1.2 state migration issues
 

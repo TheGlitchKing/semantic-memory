@@ -5,8 +5,8 @@ domains: [reference]
 audience: [developers, admin]
 tags: [frontmatter, schema, yaml, fields, spec, provenance]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-10'
+version: '1.3.0'
 purpose: Authoritative field-by-field spec for note frontmatter. Covers every field the indexer / lint / search tools read, what types they expect, what defaults apply, and which tools surface them.
 load_priority: 9
 ---
@@ -54,7 +54,7 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 ### `confidence`
 - **Type:** `string` — typically one of `low`, `medium`, `high`
 - **Required:** No (defaults to `medium` when set by `synthesize_note`)
-- **Used by:** No search re-ranking yet (planned for v1.3 confidence-decay; will multiply into score). Lint surfaces as informational. Set by `synthesize_note` automatically.
+- **Used by:** No search re-ranking. (v1.3 confidence-decay ranks by `last_verified`, not by this field — a `confidence`-multiplier was scoped but deferred.) Lint surfaces it as informational. Set by `synthesize_note` automatically.
 - **Schema rule:** None by default; you can constrain to enum in your `vault.schema.yml`
 - **Example:** `confidence: high`
 
@@ -95,11 +95,11 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Convention:** Use lowercase, dash-separated. Examples: `architecture`, `api`, `security`, `frontend`.
 - **Example:** `domains: [architecture, api]`
 
-### `evergreen` (v1.3 — planned)
+### `evergreen` (v1.3+)
 - **Type:** `boolean`
 - **Required:** No
-- **Used by:** v1.3 confidence-decay engine. When `true` AND `last_verified` is within 365 days, decay multiplier is locked at 1.0. When `last_verified` > 365 days old, the evergreen claim has expired and normal decay applies.
-- **Status:** NOT in v1.2. Adding now is forward-compatible (ignored by v1.2; honored by v1.3+).
+- **Used by:** The v1.3 confidence-decay engine. When `true` AND `last_verified` is within 365 days, the decay multiplier is pinned at 1.0. When `last_verified` is > 365 days old, the evergreen claim is treated as expired and normal decay applies (so evergreen status must be re-affirmed via `verify_note`).
+- **Status:** Shipped in v1.3.0. Ignored by v1.2 and earlier (forward-compatible). See [decay-guide](../operational/decay-guide.md).
 
 ### `extra_frontmatter`
 - **Type:** `Record<string, unknown>` — passed through `synthesize_note` calls into the resulting note's frontmatter
@@ -114,20 +114,19 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
   - `synthesize_promote` reads `proposed_target` to know where to move the proposal
 - **Direct manual editing not recommended.**
 
-### `last_modified` (v1.2+)
+### `last_modified` (planned — not shipped)
 - **Type:** ISO date `YYYY-MM-DD` or full ISO timestamp
 - **Required:** No
-- **Used by:** Auto-stamped by `apply_patch` and `update_note` on every edit. Distinguishes "file edited" from "knowledge re-verified."
-- **Important:** v1.2 introduces `last_modified` as the auto-stamp field. Before v1.2, `last_verified` was being auto-stamped on every edit, which conflated the two concepts.
+- **Status:** **Not implemented as of v1.3.** The original plan added `last_modified` as an auto-stamped edit timestamp to formally separate "file edited" from "knowledge re-verified." A v1.3 audit found the separation was already effectively true — `last_verified` is stamped only at creation and by `verify_note`, and **no edit path bumps it** — so `last_modified` was unnecessary for correct decay and was deferred. It may return later for edit-recency use cases. Do not rely on it yet.
 
 ### `last_verified`
-- **Type:** ISO date `YYYY-MM-DD`
+- **Type:** ISO date `YYYY-MM-DD` (quoted or unquoted — v1.3 normalizes YAML `Date` values)
 - **Required:** Recommended for `type: note`/`decision`/`gotcha`
 - **Used by:**
   - `find_stale` / `lint_vault({checks: ["stale"]})` rule (default threshold: 180 days)
-  - **v1.3 confidence-decay** will use this as the primary decay signal
-  - Set by `synthesize_note` at note creation
-  - **In v1.2+, only updated by:** explicit `verify_note` tool (planned v1.3) OR initial creation. NOT updated by edits.
+  - **v1.3 confidence-decay** — the primary decay signal. `multiplier = 0.5^(age_days / half_life)` where `age_days` is measured from this date. See [decay-guide](../operational/decay-guide.md).
+  - Set by `synthesize_note` / `ingest_source` at note creation
+  - **Only updated by:** the `verify_note` tool (shipped v1.3) OR initial creation. **Never bumped by edits** — this is what makes decay track verification, not editing.
 - **Schema rule:** `stale.max_age_days` controls when staleness is flagged
 - **Example:** `last_verified: '2026-04-15'`
 
@@ -282,7 +281,7 @@ A few fields look similar but mean different things:
 
 | Pair | Meaning |
 |---|---|
-| `last_modified` vs `last_verified` | `last_modified` = file edit timestamp (auto-stamped on every save). `last_verified` = "I confirmed this knowledge is still correct" (only updated at creation or by explicit `verify_note`). v1.2+ formalizes this distinction. |
+| `last_modified` vs `last_verified` | `last_verified` = "I confirmed this knowledge is still correct" — set at creation and by `verify_note` only, never bumped by edits; it drives confidence decay. `last_modified` (a separate auto-stamped edit timestamp) was planned but **not shipped** — the distinction it would formalize already holds because `last_verified` is edit-immune. |
 | `derived_from` vs `related_docs` | `derived_from` = "this note builds on those" (provenance). `related_docs` = "consider these alongside" (cross-reference). Lint `missing_provenance` only counts `derived_from`. |
 | `sources` vs `derived_from` | `sources` = external (URLs, papers, conversations). `derived_from` = internal (other vault notes). Both satisfy the provenance lint. |
 | `tags` vs `domains` | `tags` are content-classification labels (often inline-friendly). `domains` are broader content areas (e.g. "architecture", "api"). Both are filterable; tags drive graph edges, domains don't. |

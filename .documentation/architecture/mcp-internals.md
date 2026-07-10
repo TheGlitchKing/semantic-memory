@@ -5,8 +5,8 @@ domains: [architecture]
 audience: [developers]
 tags: [mcp, server, context, tools, modules, refactor, v1.1]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-10'
+version: '1.3.0'
 purpose: How the MCP server is structured internally — composition root, shared context, per-domain tool modules. Read this if you're adding a new MCP tool or debugging tool registration.
 load_priority: 7
 ---
@@ -36,7 +36,7 @@ src/mcp/
     inventory.ts        # NOT a tool module — it's the canonical CURRENT_TOOL_INVENTORY const used by the AGENTS.md generator
 ```
 
-Total: 40 tools across 11 tool modules + 1 inventory const.
+Total: 41 tools across 11 tool modules + 1 inventory const.
 
 ## Composition root (`server.ts`)
 

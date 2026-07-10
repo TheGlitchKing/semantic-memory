@@ -5,9 +5,9 @@ domains: [reference]
 audience: [developers]
 tags: [config, settings, env-vars, tunables, gitignore]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
-purpose: Every config file, env var, schema field, and tunable. Includes v1.2 .gitignore additions and v1.1+ runtime state files.
+last_updated: '2026-07-10'
+version: '1.3.0'
+purpose: Every config file, env var, schema field, and tunable. Includes v1.2 .gitignore additions, v1.1+ runtime state files, and the v1.3 decay schema block.
 load_priority: 7
 ---
 
@@ -228,6 +228,39 @@ lint:
   schema_violations:
     severity: error                        # blocks apply_patch when validate=true
 ```
+
+### `decay` (vault.schema.yml) — 🆕 v1.3+
+Confidence decay down-weights `search_semantic`/`search_hybrid` results by time since a note's `last_verified` timestamp. It never removes notes from results — only ranks them lower, and only down to `floor`. `search_text`/`search_graph` are unaffected. It composes multiplicatively with `load_priority`.
+
+```yaml
+decay:
+  enabled: true                 # false → byte-identical pre-v1.3 ranking
+  default_half_life_days: 365   # multiplier = 0.5 ^ (age_days / half_life)
+  per_type:
+    decision: 365
+    note: 365
+    gotcha: 180
+    source: null                # null = never decays
+    proposal: 14
+  floor: 0.1                     # notes never drop below this multiplier
+  hotness_boost:
+    enabled: false               # extend half-life for heavily-backlinked notes (opt-in, off by default)
+    cap: 2.0
+```
+
+- **`enabled`** — master switch. `false` reproduces pre-v1.3 ranking byte-for-byte.
+- **`default_half_life_days`** — half-life used for any type not listed in `per_type`. Multiplier formula: `0.5 ^ (age_days / half_life)`.
+- **`per_type`** — per-note-type half-life override, keyed by frontmatter `type`. `null` for a type means it never decays (e.g. `source`).
+- **`floor`** — minimum multiplier a decayed note can reach; decay ranks down, never to zero.
+- **`hotness_boost`** — opt-in, off by default. When `enabled: true`, extends the effective half-life for heavily-backlinked notes, up to `cap`×.
+
+**`last_verified`** is stamped at note creation and reset by the `verify_note` MCP tool (see [mcp-tools-reference.md](./mcp-tools-reference.md)) — it is **not** bumped by ordinary edits (`update_note`, `apply_patch`).
+
+**`evergreen: true`** frontmatter field pins a note at multiplier `1.0` while its `last_verified` is within 365 days; after that it decays normally.
+
+Unquoted YAML dates in frontmatter (e.g. `last_verified: 2026-01-01`) are handled correctly — parsed as a `Date` and normalized, not treated as a string parse error.
+
+**CLI debugging:** `semantic-memory decay-config --notes <path>` prints the active config; `semantic-memory decay-trace <notePath> --notes <path>` prints the calculation for one note. See [cli-reference.md](./cli-reference.md).
 
 ---
 

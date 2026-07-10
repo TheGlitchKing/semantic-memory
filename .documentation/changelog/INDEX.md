@@ -20,6 +20,8 @@ load_priority: 6
 - **[v1.0 — Rebrand to semantic-memory](./v1-0-rebrand.md)** — Public-facing rename from `semantic-sidekick`. Multi-corpus framing announced. Internal wiring partly left for v1.1.1 to clean up.
 - **[v1.1 — brain-absorption](./v1-1-brain-absorption.md)** — AGENTS.md contract, hard-gated verification sessions, multi-agent skill bundler, drift detection, distill/synthesize unification. Plus the v1.1.1 hotfix for the unfinished v1.0 rebrand.
 - **[v1.2 — state consolidation](./v1-2-state-consolidation.md)** — Three transient state files moved from `.claude/.sidekick-*` to `.claude/.semantic-memory/`. New `migrate-state` CLI. New `legacy_state_files` healthcheck finding.
+- **[v1.2.3 — hygiene line completed](./v1-2-3-hygiene-completion.md)** — The three v1.2 roadmap items that slipped: `/healthcheck --fix` auto-remediation, `lint_vault({checks:['code_symbols']})` code-path drift, and a fresh-install CI smoke gate.
+- **[v1.3 — confidence decay](./v1-3-confidence-decay.md)** — Age-aware retrieval ranking (`0.5^(age/half-life)`, type-aware, floored, composes with `load_priority`). New `verify_note` tool (40→41), `evergreen` frontmatter, `decay` block in results, `decay-config`/`decay-trace` CLI.
 
 ## v0.x — semantic-sidekick phased build
 
