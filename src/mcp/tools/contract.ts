@@ -8,6 +8,38 @@ import {
   type ModeSummary,
 } from "../../core/agents-contract.js";
 import { CURRENT_TOOL_INVENTORY } from "./inventory.js";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+
+// Read the real package version dynamically so the contract stamp tracks releases.
+// (Was hardcoded "1.1.0" through v1.3, which froze the AGENTS.md version — the same
+// class of bug as the frozen plugin.json fixed in 1.2.2.)
+//
+// Walks up from this module's runtime location to find the package's OWN
+// package.json (matched by name, so a dependency's package.json can't shadow it).
+// Robust to tsup bundling/splitting, where the emitted file may live at dist/ or
+// dist/mcp/ or a hoisted chunk — a fixed relative depth would not be.
+function pluginVersion(): string {
+  try {
+    let dir = dirname(fileURLToPath(import.meta.url));
+    for (let i = 0; i < 6; i++) {
+      const pkgPath = join(dir, "package.json");
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: string; version?: string };
+        if (pkg?.name === "@theglitchking/semantic-memory" && typeof pkg.version === "string") {
+          return pkg.version;
+        }
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+    return "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 export function registerContractTools(server: McpServer, ctx: ServerContext): void {
   if (ctx.options.readOnly) return;
@@ -33,7 +65,7 @@ export function registerContractTools(server: McpServer, ctx: ServerContext): vo
       ];
       const result = await regenerateAgentsContract({
         projectRoot: root,
-        pluginVersion: "1.1.0",
+        pluginVersion: pluginVersion(),
         tools,
         modes,
         force,
