@@ -14,7 +14,7 @@ export interface DriftFinding {
   severity: Severity;
   summary: string;
   detail?: string;
-  fixable_via?: "skill-link" | "mcp-reconcile" | "regenerate-contract" | "reindex" | "none";
+  fixable_via?: "skill-link" | "mcp-reconcile" | "regenerate-contract" | "reindex" | "state-migrate" | "none";
 }
 
 export interface HealthcheckResult {
@@ -311,7 +311,7 @@ async function checkLegacyStateFiles(projectRoot: string): Promise<DriftFinding 
     detail:
       `Files: ${present.join(", ")}. Run \`bin/semantic-memory migrate-state\` to move them under .claude/.semantic-memory/. ` +
       `These files are still being read for backwards-compat through v1.x; the legacy fallback is removed in v2.0.`,
-    fixable_via: "none",
+    fixable_via: "state-migrate",
   };
 }
 

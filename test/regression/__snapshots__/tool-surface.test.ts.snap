@@ -483,19 +483,20 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "install_schema",
   },
   {
-    "description": "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass \`checks\` to filter to specific rules (schema, provenance, stale, broken_links) — when filtered, byRule contains only the requested rules.",
+    "description": "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass \`checks\` to filter to specific rules (schema, provenance, stale, broken_links, code_symbols) — when filtered, byRule contains only the requested rules. \`code_symbols\` is opt-in only (never in the default report): it flags inline-code file-path references in notes that no longer exist under the project root, and is a silent no-op outside a code repo.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
         "checks": {
-          "description": "Filter to specific lint rules. Omit for full report.",
+          "description": "Filter to specific lint rules. Omit for full report (excludes code_symbols, which is opt-in).",
           "items": {
             "enum": [
               "schema",
               "provenance",
               "stale",
               "broken_links",
+              "code_symbols",
             ],
             "type": "string",
           },

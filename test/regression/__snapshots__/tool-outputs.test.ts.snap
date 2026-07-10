@@ -162,6 +162,7 @@ exports[`Regression: MCP tool outputs (golden snapshots) > lint_vault > returns 
 {
   "ruleNames": [
     "broken_links",
+    "code_symbols",
     "missing_provenance",
     "schema_violations",
     "stale",
