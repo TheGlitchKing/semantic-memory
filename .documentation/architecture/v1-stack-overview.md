@@ -5,8 +5,8 @@ domains: [architecture]
 audience: [developers, admin]
 tags: [architecture, v1, rebrand, brain-absorption, sessions, contract, drift]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-10'
+version: '1.3.0'
 purpose: Single doc covering everything v1.0 / v1.1 / v1.2 added on top of the v0.x five-layer substrate. Read this BEFORE the per-version changelog entries; it's the architectural narrative, they're the bullet lists.
 load_priority: 9
 ---
@@ -76,6 +76,8 @@ v1.0.x: 33 tools
 +session_start +session_run
 +session_finish +session_status         (Phase 5)
 v1.1.0: 40 tools (write mode), 21 (read-only mode)
++verify_note                            (v1.3)
+v1.3.0: 41 tools (write mode), 21 (read-only mode)
 ```
 
 ## v1.1.1 — Hotfix: complete the rebrand wiring
@@ -117,9 +119,11 @@ Reads check the new path first; if absent, fall back to old. Writes always go to
 These are deferred:
 
 - **Multi-corpus completion** — v1.0 announced 6 corpora (vault, code, plans, docs, research, project-map). Only the vault corpus is wired. Future work, multi-quarter scope.
-- **Confidence decay** (planned for v1.3) — search re-ranking by `last_verified` with type-aware half-life. Plan exists; no code yet.
-- **`/healthcheck --fix` flag** — referenced in `commands/healthcheck.md` but not implemented (planned for v1.2.x or v1.3).
-- **Code-symbol drift detection** — depends on babel-fish; planned for v1.2.x.
+
+Shipped since this overview was first written (no longer deferred):
+
+- **Confidence decay** — SHIPPED in v1.3.0: age-aware search re-ranking by `last_verified` with type-aware half-life, `verify_note`, `evergreen`. See the [v1.3 changelog](../changelog/v1-3-confidence-decay.md).
+- **`/healthcheck --fix`** and **code-symbol drift lint** (`code_symbols`) — SHIPPED in v1.2.3. See the [v1.2.3 changelog](../changelog/v1-2-3-hygiene-completion.md).
 
 ## Composition — how the layers cooperate at v1.2
 
@@ -147,7 +151,7 @@ These are deferred:
    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │  MCP server (src/mcp/server.ts → context.ts → tools/*.ts)              │
-│   • 40 tools across 11 modules                                         │
+│   • 41 tools across 11 modules                                         │
 │   • Per-domain registration: search/read/write/patch/lint/log/         │
 │     metadata/graph/system/contract/session                             │
 │   • Conditional registration: write-mode tools gated on !readOnly      │

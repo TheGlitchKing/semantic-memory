@@ -32,8 +32,9 @@ describe("MCP Server", () => {
 
   it("should list all expected tools", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(40);
+    expect(tools.length).toBe(41);
     const names = tools.map((t) => t.name);
+    expect(names).toContain("verify_note");
     expect(names).toContain("search_semantic");
     expect(names).toContain("search_text");
     expect(names).toContain("search_graph");
@@ -371,6 +372,59 @@ describe("MCP Server", () => {
         name: "delete_note",
         arguments: { path: "round-trip-test.md", confirm: true },
       });
+    });
+  });
+
+  describe("Confidence decay (v1.3)", () => {
+    it("verify_note stamps last_verified to today and returns a fresh multiplier", async () => {
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "decay-verify.md",
+          content: "# Decay verify probe\n\nContent.",
+          frontmatter: { title: "Decay verify probe", status: "active", type: "note", last_verified: "2020-01-01" },
+        },
+      });
+
+      const res = await client.callTool({ name: "verify_note", arguments: { path: "decay-verify.md" } });
+      const parsed = JSON.parse((res.content as any)[0].text);
+      const today = new Date().toISOString().slice(0, 10);
+      expect(parsed.last_verified).toBe(today);
+      // last_verified is a date (midnight), so a few hours into the day it's ~0.998, not exactly 1.
+      expect(parsed.decay_multiplier).toBeGreaterThan(0.99);
+
+      const fm = await client.callTool({ name: "get_frontmatter", arguments: { path: "decay-verify.md" } });
+      const fmParsed = JSON.parse((fm.content as any)[0].text);
+      expect(fmParsed.last_verified).toBe(today);
+      // content field untouched
+      expect(fmParsed.title).toBe("Decay verify probe");
+
+      await client.callTool({ name: "delete_note", arguments: { path: "decay-verify.md", confirm: true } });
+    });
+
+    it("search_semantic attaches a decay block to a note with an old last_verified", async () => {
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "decay-old.md",
+          content: "# Zephyr flux capacitor calibration\n\nNotes on zephyr flux capacitor calibration procedure.",
+          frontmatter: { title: "Zephyr flux capacitor", status: "active", type: "gotcha", last_verified: "2019-01-01" },
+        },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      const result = await client.callTool({
+        name: "search_semantic",
+        arguments: { query: "zephyr flux capacitor calibration", limit: 5 },
+      });
+      const parsed = JSON.parse((result.content as any)[0].text);
+      const hit = parsed.find((r: any) => r.path === "decay-old.md");
+      expect(hit).toBeDefined();
+      expect(hit.decay).toBeDefined();
+      expect(hit.decay.multiplier).toBeLessThan(1);
+      expect(hit.decay.reason).toContain("gotcha");
+
+      await client.callTool({ name: "delete_note", arguments: { path: "decay-old.md", confirm: true } });
     });
   });
 });

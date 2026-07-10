@@ -3,10 +3,10 @@ title: Drift detection — SessionStart auto-check + /healthcheck deep audit
 tier: guide
 domains: [operational]
 audience: [developers, admin]
-tags: [drift, healthcheck, sessionstart, auto-check, install-health, v1.1]
+tags: [drift, healthcheck, sessionstart, auto-check, install-health, v1.1, fix]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-10'
+version: '1.3.0'
 purpose: Operational guide to drift detection. The fast-tier auto-check that fires on every SessionStart, the manual /healthcheck deep audit, what each finding means, and how to fix them.
 load_priority: 7
 ---
@@ -69,7 +69,7 @@ The full audit runs both tiers. The slow tier adds:
 |---|---|
 | `lint_vault` | Full vault lint: schema violations, missing provenance, stale notes (>180d), broken wikilinks. Same as `lint_vault({checks: ["all"]})`. |
 | (planned v1.2) `code_symbol_drift` | If babel-fish is active, cross-references vault notes' code mentions against the symbol index. Flags notes referencing renamed/removed symbols. |
-| (planned v1.3) `decay_candidates` | Notes that match recent queries highly but have decayed scores — i.e. "this keeps being relevant but is getting stale." |
+| `decay_candidates` (planned, v1.3.x follow-up) | Notes that match recent queries highly but have decayed scores — i.e. "this keeps being relevant but is getting stale." Deferred from v1.3.0 (needs query-log history). |
 
 The slow tier can take seconds-to-tens-of-seconds on a large vault. NOT in the auto path.
 
@@ -185,21 +185,32 @@ Findings from the lint suite. These are vault content issues, not install issues
 
 Most lint findings need **human review** — only you can decide if a stale note still applies, or if a broken link should be fixed vs. deleted.
 
-## Auto-fix planned for v1.2.x (`/healthcheck --fix`)
+## Auto-fix (`/healthcheck --fix`) — shipped in v1.2.3
 
-The `--fix` flag is documented in `commands/healthcheck.md` but **not yet implemented in v1.2.0**. The plan is for v1.2.x:
+`/healthcheck --fix` (and `semantic-memory healthcheck --fix`) runs drift detection, applies **safe** fixes for fixable findings, then re-runs detection so the printed result reflects the post-fix state. Combinable with `--fast` and `--json`.
 
-| Finding | Auto-fixable? | What --fix would do |
+"Safe" means idempotent, non-destructive, and derivable from the install itself. Findings that touch user-authored content are reported for human review, never auto-changed.
+
+| Finding | Auto-fixed by `--fix`? | Action |
 |---|---|---|
-| `mcp_json_entry` | Yes | Run `normalize-config` |
-| `hook_registration` | Yes | Run `relink` |
-| `agents_contract` (no markers) | No | Surface the warning + `--fix` instructions only |
-| `session_staleness` | No | Surface to user (decision is theirs) |
-| `legacy_state_files` | Yes | Run `migrate-state` |
-| `index_freshness` | No (expensive) | Surface a clear "run reindex" pointer |
-| `lint_vault` findings | No | Human review |
+| `mcp_json_entry` | Yes | reconcile `.mcp.json` (`mcp-reconcile`) |
+| `hook_registration` | Yes | re-link skills/hooks (`skill-link`) |
+| `skill_manifest:*` | Yes | re-link skills (`skill-link`) |
+| `index_freshness` | Yes | rebuild the vector index (`reindex`) |
+| `legacy_state_files` | Yes | run `migrate-state` (`state-migrate`) |
+| `agents_contract` (no markers / hand-edited) | No | run `/contract` or move content to a Local Notes section |
+| `session_staleness` | No | resume, or remove the session file (your call) |
+| `lint_vault` findings | No | human review — stale notes, broken wikilinks, schema violations |
 
-Until `--fix` ships, manually run the remediation commands listed above.
+The decision logic is a pure, unit-tested planner (`src/core/healthcheck-fix.ts`); the CLI executes the plan. Example:
+
+```bash
+semantic-memory healthcheck --fix          # smoke + full drift + fixes
+semantic-memory healthcheck --fix --fast    # skip the slow-tier vault lint
+semantic-memory healthcheck --fix --json    # machine-readable {smoke, result, fix}
+```
+
+> **Note (v1.2.3):** the `healthcheck` command now always runs drift detection. Before 1.2.3 it exited immediately after the install smoke-test on a healthy install, so drift detection silently never ran unless the smoke-test failed — that was a bug, fixed alongside `--fix`.
 
 ## Programmatic access
 
@@ -228,8 +239,8 @@ console.log(formatDriftBanner(result));
 
 To set expectations:
 
-- **Doesn't detect content drift** (e.g. "this note's claim is outdated") — that's confidence-decay, planned for v1.3
-- **Doesn't auto-migrate or auto-reindex** — surfacing only; user decides
+- **Doesn't detect content drift** (e.g. "this note's claim is outdated") — that's [confidence-decay](./decay-guide.md) (shipped in v1.3)
+- **Doesn't auto-migrate or auto-reindex *unless you pass `--fix`*** — the default check is surfacing-only; `--fix` opts into safe auto-remediation
 - **Doesn't check across machines** — strictly per-project, per-machine
 - **Doesn't alert externally** — no webhooks, no notifications. Output is conversational text.
 

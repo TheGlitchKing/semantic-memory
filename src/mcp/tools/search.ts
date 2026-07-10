@@ -5,7 +5,7 @@ import type { ServerContext } from "../context.js";
 export function registerSearchTools(server: McpServer, ctx: ServerContext): void {
   server.tool(
     "search_semantic",
-    "Vector similarity search — find notes similar to a query by meaning. Scores are boosted by load_priority when present.",
+    "Vector similarity search — find notes similar to a query by meaning. Scores are boosted by load_priority and down-weighted by confidence decay (time since last_verified); decayed results carry a `decay` block. Set decay.enabled:false in vault.schema.yml to disable.",
     {
       query: z.string(),
       limit: z.coerce.number().optional().default(10),
@@ -24,7 +24,7 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
       }
       const queryEmbed = await ctx.embedder.embed(query);
       let results = vectorIndex.search(queryEmbed, limit * 3);
-      results = results.map((r) => ({ ...r, score: ctx.applyPriorityBoost(r.score, r.path) }));
+      results = results.map((r) => ctx.applyDecay({ ...r, score: ctx.applyPriorityBoost(r.score, r.path) }));
       results.sort((a, b) => b.score - a.score);
       results = ctx.applyDateFilter(results, modifiedAfter, modifiedBefore);
       const docByPath = ctx.getDocByPath();
@@ -84,7 +84,7 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
 
   server.tool(
     "search_hybrid",
-    "Combined semantic + graph search — vector results re-ranked by graph proximity and load_priority",
+    "Combined semantic + graph search — vector results re-ranked by graph proximity and load_priority, and down-weighted by confidence decay (time since last_verified); decayed results carry a `decay` block.",
     {
       query: z.string(),
       limit: z.coerce.number().optional().default(10),
@@ -107,13 +107,12 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
       const graphResults = ctx.graph.searchGraph(query, 2);
       const graphPaths = new Set(graphResults.map((r) => r.path));
 
-      let hybrid = semanticResults.map((r) => ({
-        ...r,
-        score: ctx.applyPriorityBoost(
-          graphPaths.has(r.path) ? r.score * 1.3 : r.score,
-          r.path
-        ),
-      }));
+      let hybrid = semanticResults.map((r) =>
+        ctx.applyDecay({
+          ...r,
+          score: ctx.applyPriorityBoost(graphPaths.has(r.path) ? r.score * 1.3 : r.score, r.path),
+        })
+      );
       hybrid.sort((a, b) => b.score - a.score);
 
       hybrid = ctx.applyDateFilter(hybrid, modifiedAfter, modifiedBefore);

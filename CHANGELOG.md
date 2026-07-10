@@ -2,6 +2,39 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.3.0] - 2026-07-10 — Confidence decay: age-aware retrieval ranking
+
+Replaces age-blind ranking with smooth, type-aware confidence decay. Notes age out of relevance gracefully; explicitly-verified notes reset the clock; agents see decay state and can re-verify. Opt-out via one config line.
+
+### Added
+
+- **Decay engine (`src/core/decay.ts`).** Pure, side-effect-free: `multiplier = 0.5^(age_days / half_life)`, keyed on time since `last_verified`. Per-type half-life (`decision`/`note` 365d, `gotcha` 180d, `source` never, `proposal` 14d), floored at 0.1 (notes down-weight, never disappear). Fails open (multiplier 1.0) on any uncertainty — disabled config, missing/invalid/**future** `last_verified` — so decay can only down-rank a note we're confident is old.
+- **Decay applied at search time.** `search_semantic` and `search_hybrid` multiply decay into the score after the existing `load_priority` boost (composes, never replaces). `search_text` (exact-match intent) and `search_graph` (graph distance is the signal) are deliberately unaffected.
+- **`decay` block surfaced in results.** Decayed results (multiplier < 1) carry `{ multiplier, age_days, effective_half_life, reason }`; fresh results stay clean.
+- **`verify_note` MCP tool** (tool count 40 → 41). Stamps `last_verified` to today WITHOUT touching content or any other field, logs a `verify` event, and returns the note's new decay multiplier. The explicit clock-reset.
+- **`evergreen` frontmatter.** `evergreen: true` pins a note at multiplier 1.0 while its `last_verified` is within 365 days; past that it decays normally (the evergreen claim itself expires, forcing periodic re-affirmation).
+- **CLI introspection.** `semantic-memory decay-config --notes <path>` prints the active config (defaults vs. `vault.schema.yml` override); `semantic-memory decay-trace <note> --notes <path>` prints the full calculation for one note.
+- **Config in `vault.schema.yml`.** A documented `decay:` block ships in the default schema. `decay.enabled: false` restores byte-identical pre-v1.3 ranking.
+
+### Fixed
+
+- **Unquoted-date frontmatter no longer silently disables decay.** YAML parses `last_verified: 2019-01-01` (unquoted) into a `Date`, not a string, so a naive `typeof === "string"` check dropped it and every such note read as "no last_verified (fail open)". New `normalizeVerifiedDate()` coerces string **or** Date at all read sites (search, `verify_note`, `decay-trace`). Caught by the `decay-trace` smoke test during development.
+
+### Semantics note: `last_verified` vs. edits
+
+Decay keys on `last_verified`, which is stamped only at note creation (`synthesize_note`, `ingest_source`) and by `verify_note` — **no edit path bumps it**. So ordinary edits do not reset the decay clock, which is the intended v1.3 correctness property. The separate `last_modified` frontmatter field from the original plan (Phase 2) is therefore not required for correct decay and is deferred; it can be added later for edit-recency use cases without affecting decay.
+
+### Deliberately deferred (documented, not dropped)
+
+- **Backlink hotness boost (Phase 7)** — the engine supports it (`hotness_boost` config), but it ships **flag-off by default**; hub notes (index.md) distort the signal, so it must be earned via telemetry before defaulting on.
+- **`decay_candidates` lint (Phase 8)** and **selection-logging telemetry (Phase 10)** — both need query-log history / weeks of passive collection to be meaningful, and telemetry is the dependency for the v1.4 usage-feedback ranking. Staged as a v1.3.x follow-up.
+
+### Tests
+
+- New: `test/unit/decay.test.ts` (12 cases — half-life curve, floor, per-type, never-decay, fail-open, evergreen + expiry, hotness, Date-normalization regression).
+- Extended: `test/integration/mcp-server.test.ts` (verify_note round-trip; `search_semantic` attaches a `decay` block to an old-`last_verified` note).
+- Updated: tool-surface regression snapshots (additive `verify_note` tool + decay-aware search descriptions); tool-count assertions 40 → 41 (read-only mode unchanged at 21 — `verify_note` is write-gated).
+
 ## [1.2.3] - 2026-07-10 — Complete the v1.2 hygiene line: `--fix`, code-symbol drift, CI smoke
 
 Ships the three v1.2 roadmap items that slipped when 1.2.1/1.2.2 were preempted by defect fixes. All three are additive; no tool is removed and default behavior is unchanged unless a flag is passed.

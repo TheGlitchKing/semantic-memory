@@ -27,7 +27,8 @@ load_priority: 6
 
 - **[Sessions Guide](./sessions-guide.md)** — Verification-gated work units. When to open a session, the hard-gate semantics of `session_finish`, when to use the `verified: false` waiver path, what the Stop hook does with open sessions.
 - **[AGENTS.md Contract Guide](./contract-guide.md)** — The canonical agent contract artifact. When to generate, what's in the managed block, hand-edit detection, how it relates to CLAUDE.md, what to commit to git.
-- **[Drift Detection](./drift-detection.md)** — SessionStart fast-tier auto-check + manual `/healthcheck` deep audit. Per-finding remediation. What v1.2.x's `--fix` flag will auto-fix.
+- **[Drift Detection](./drift-detection.md)** — SessionStart fast-tier auto-check + manual `/healthcheck` deep audit. Per-finding remediation. What `/healthcheck --fix` (v1.2.3) auto-fixes.
+- **[Confidence Decay Guide](./decay-guide.md)** — Operating v1.3 confidence decay: read decay state (`decay` block, `decay-trace`), re-verify with `verify_note`, mark `evergreen`, tune half-lives, disable.
 
 ### v1.2+ additions
 

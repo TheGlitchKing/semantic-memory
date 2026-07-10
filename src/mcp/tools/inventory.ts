@@ -38,6 +38,7 @@ export const CURRENT_TOOL_INVENTORY: readonly ToolInventoryEntry[] = [
   { name: "synthesize_promote", description: "Move a reviewed proposal note to its canonical destination, stripping proposal markers.", group: "patch" },
   { name: "ingest_source", description: "Build + apply a ChangeSet that ingests a source and the notes extracted from it.", group: "patch" },
   { name: "install_schema", description: "Bootstrap vault.schema.yml in the vault root with the default schema.", group: "patch" },
+  { name: "verify_note", description: "Stamp last_verified to today (content unchanged) to reset the confidence-decay clock; logs a verify event.", group: "patch" },
   // lint
   { name: "find_schema_violations", description: "Scan for schema violations.", group: "lint", deprecated: true },
   { name: "find_missing_provenance", description: "Scan for notes lacking sources/derived_from.", group: "lint", deprecated: true },

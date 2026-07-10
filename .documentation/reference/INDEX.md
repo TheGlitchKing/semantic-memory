@@ -21,7 +21,7 @@ load_priority: 6
 - **[CLI Reference](./cli-reference.md)** — Every `semantic-memory` (and legacy `semantic-sidekick`) subcommand + flags + env vars + exit codes. *Note: needs updating for v1.2's `migrate-state` and v1.1's `skills` subcommand tree.*
 - **[Configuration Reference](./configuration-reference.md)** — Every config file, env var, schema field, and tunable.
 - **[Hooks Reference](./hooks-reference.md)** — SessionStart / UserPromptSubmit / Stop hook contracts + state files.
-- **[MCP Tools Reference](./mcp-tools-reference.md)** — All MCP tools by category with args, use-when/skip-when guidance. *Note: written at 33 tools (v0.x); v1.x ships 40 tools — see [v1-stack-overview.md](../architecture/v1-stack-overview.md) for the additions (regenerate_contract, inspect_contract, synthesize_promote, session_start/run/finish/status).*
+- **[MCP Tools Reference](./mcp-tools-reference.md)** — All MCP tools by category with args, use-when/skip-when guidance. *v1.x ships 41 tools (write mode), 21 (read-only) — see [v1-stack-overview.md](../architecture/v1-stack-overview.md) for the v1.1 additions (regenerate_contract, inspect_contract, synthesize_promote, session_start/run/finish/status) and v1.3's verify_note.*
 
 ## See also
 
