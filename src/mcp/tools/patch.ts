@@ -6,6 +6,7 @@ import { buildSynthesizeChangeSet, buildPromoteChangeSet } from "../../core/synt
 import { buildIngestChangeSet } from "../../core/ingest.js";
 import { installDefaultSchema } from "../../core/schema.js";
 import { logEvent } from "../../core/log.js";
+import { computeDecay, loadDecayConfig } from "../../core/decay.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
@@ -302,6 +303,36 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       const r = await installDefaultSchema(ctx.notesPath, force);
       return ctx.textResponse(
         r.written ? `Installed default schema: ${r.path}` : `Schema already exists: ${r.path} (pass force=true to overwrite)`
+      );
+    }
+  );
+
+  server.tool(
+    "verify_note",
+    "Re-verify a note: stamp `last_verified` to today WITHOUT changing content or any other frontmatter field, and log a `verify` event. Resets the confidence-decay clock so the note ranks fresh again. Returns the note's new decay multiplier (typically 1.0).",
+    { path: z.string() },
+    async ({ path }) => {
+      let fm: Record<string, unknown>;
+      try {
+        fm = await ctx.frontmatterManager.get(path);
+      } catch {
+        return ctx.textResponse(`verify_note: note not found: ${path}`);
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      await ctx.frontmatterManager.update(path, { last_verified: today });
+      await logEvent(ctx.notesPath, {
+        kind: "verify",
+        summary: `verified ${path}`,
+        payload: { path, last_verified: today },
+      });
+      const d = computeDecay({
+        type: typeof fm.type === "string" ? fm.type : undefined,
+        last_verified: today,
+        evergreen: fm.evergreen === true,
+        config: loadDecayConfig(ctx.notesPath),
+      });
+      return ctx.textResponse(
+        JSON.stringify({ path, last_verified: today, decay_multiplier: d.multiplier }, null, 2)
       );
     }
   );

@@ -10,7 +10,11 @@ version: 1
 # Provenance fields — apply to all types, enforced by lint.find_missing_provenance.
 # sources:         URLs or filesystem paths the note was derived from
 # derived_from:    wikilinks to other notes this one synthesizes
-# last_verified:   ISO date this note was last confirmed true (YYYY-MM-DD)
+# last_verified:   ISO date this note was last confirmed true (YYYY-MM-DD).
+#                  Set at creation and by verify_note; NOT bumped on ordinary edits.
+#                  Drives confidence decay (see the decay: block below).
+# evergreen:       true → the note is pinned against decay while last_verified is
+#                  within 365 days; after that it decays normally (re-affirm to reset).
 # status:          one of: draft | active | stale | deprecated | archived
 # confidence:      one of: high | medium | low
 provenance_fields:
@@ -59,4 +63,21 @@ lint:
   schema_violations:
     # Triggers on missing required fields, unknown type, or enum mismatch.
     severity: error
+
+# Confidence decay (v1.3). Down-weights search results by time since last_verified.
+# Composes multiplicatively with load_priority — it never removes notes, only ranks
+# them lower (floored). Set enabled: false for byte-identical pre-v1.3 ranking.
+decay:
+  enabled: true
+  default_half_life_days: 365   # multiplier = 0.5 ^ (age_days / half_life)
+  per_type:
+    decision: 365
+    note: 365
+    gotcha: 180
+    source: null                # null = never decays
+    proposal: 14
+  floor: 0.1                     # notes never drop below this multiplier
+  hotness_boost:
+    enabled: false              # extend half-life for heavily-backlinked notes (opt-in)
+    cap: 2.0
 `;

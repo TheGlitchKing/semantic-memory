@@ -9,6 +9,7 @@ import { TextSearch } from "../core/search-text.js";
 import { NoteCrud } from "../core/crud.js";
 import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
 import { SessionManager, deriveSessionDir } from "../core/session.js";
+import { computeDecay, loadDecayConfig, normalizeVerifiedDate, type DecayConfig } from "../core/decay.js";
 import type { IndexedDocument, IndexState } from "../core/types.js";
 
 export interface ServerOptions {
@@ -22,12 +23,20 @@ export interface ServerOptions {
   onProgress?: (embedded: number, total: number) => void;
 }
 
+export interface DecayBlock {
+  multiplier: number;
+  age_days: number;
+  effective_half_life: number;
+  reason: string;
+}
+
 export interface EnrichedResult {
   mtime?: string;
   loadPriority?: number;
   status?: string;
   tier?: string;
   domains?: string[];
+  decay?: DecayBlock;
 }
 
 export interface ServerContext {
@@ -59,6 +68,14 @@ export interface ServerContext {
   indexingMessage(): string;
   enrichResult<T extends { path: string }>(r: T): T & EnrichedResult;
   applyPriorityBoost(score: number, path: string): number;
+  /**
+   * Apply confidence decay to a scored result: multiply its score by the decay
+   * multiplier and, when the note is actually decayed (multiplier < 1), attach a
+   * `decay` block for the agent to see. No-op when decay is disabled or the note
+   * is fresh. Semantic ranking signal only — callers wire it into
+   * search_semantic / search_hybrid, never search_text / search_graph.
+   */
+  applyDecay<T extends { path: string; score: number }>(r: T): T & { decay?: DecayBlock };
   applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -267,6 +284,42 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     return score * (1 + (doc.loadPriority - 5) * 0.04);
   }
 
+  // Decay config is read once from vault.schema.yml and cached for the process.
+  let decayConfig: DecayConfig | null = null;
+  function getDecayConfig(): DecayConfig {
+    if (!decayConfig) decayConfig = loadDecayConfig(notesPath);
+    return decayConfig;
+  }
+
+  function applyDecay<T extends { path: string; score: number }>(r: T): T & { decay?: DecayBlock } {
+    const cfg = getDecayConfig();
+    if (!cfg.enabled) return r;
+    const doc = docByPath.get(r.path);
+    if (!doc) return r;
+    const fm = doc.frontmatter ?? {};
+    const d = computeDecay({
+      type: typeof fm.type === "string" ? fm.type : undefined,
+      last_verified: normalizeVerifiedDate(fm.last_verified),
+      evergreen: fm.evergreen === true,
+      config: cfg,
+    });
+    const scored = { ...r, score: r.score * d.multiplier };
+    // Only surface the decay block when the note is actually down-weighted —
+    // don't clutter healthy results.
+    if (d.multiplier < 1) {
+      return {
+        ...scored,
+        decay: {
+          multiplier: Math.round(d.multiplier * 1000) / 1000,
+          age_days: Math.round(d.age_days),
+          effective_half_life: d.effective_half_life,
+          reason: d.reason,
+        },
+      };
+    }
+    return scored;
+  }
+
   function applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -308,6 +361,7 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     indexingMessage,
     enrichResult,
     applyPriorityBoost,
+    applyDecay,
     applyDateFilter,
   };
 }

@@ -42,6 +42,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "synthesize_promote",
   "update_frontmatter",
   "update_note",
+  "verify_note",
 ]
 `;
 
@@ -791,7 +792,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "search_graph",
   },
   {
-    "description": "Combined semantic + graph search — vector results re-ranked by graph proximity and load_priority",
+    "description": "Combined semantic + graph search — vector results re-ranked by graph proximity and load_priority, and down-weighted by confidence decay (time since last_verified); decayed results carry a \`decay\` block.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -832,7 +833,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "search_hybrid",
   },
   {
-    "description": "Vector similarity search — find notes similar to a query by meaning. Scores are boosted by load_priority when present.",
+    "description": "Vector similarity search — find notes similar to a query by meaning. Scores are boosted by load_priority and down-weighted by confidence decay (time since last_verified); decayed results carry a \`decay\` block. Set decay.enabled:false in vault.schema.yml to disable.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -1175,6 +1176,23 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "update_note",
+  },
+  {
+    "description": "Re-verify a note: stamp \`last_verified\` to today WITHOUT changing content or any other frontmatter field, and log a \`verify\` event. Resets the confidence-decay clock so the note ranks fresh again. Returns the note's new decay multiplier (typically 1.0).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "verify_note",
   },
 ]
 `;

@@ -908,4 +908,57 @@ program
     }
   });
 
+// --- Confidence decay introspection (v1.3) ---
+
+program
+  .command("decay-config")
+  .description("Print the active confidence-decay config (shipped defaults + any vault.schema.yml override).")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { loadDecayConfig, DEFAULT_DECAY_CONFIG } = await import("../core/decay.js");
+    const cfg = loadDecayConfig(resolve(opts.notes));
+    const source = JSON.stringify(cfg) === JSON.stringify(DEFAULT_DECAY_CONFIG) ? "defaults" : "vault.schema.yml (overridden)";
+    console.log(JSON.stringify({ source, config: cfg }, null, 2));
+    process.exit(0);
+  });
+
+program
+  .command("decay-trace <notePath>")
+  .description("Show the decay calculation for one note: type, last_verified, age, half-life, evergreen, multiplier.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (notePath: string, opts) => {
+    const { loadDecayConfig, computeDecay, normalizeVerifiedDate } = await import("../core/decay.js");
+    const matter = (await import("gray-matter")).default;
+    const abs = resolve(opts.notes, notePath);
+    if (!existsSync(abs)) {
+      console.error(`note not found: ${abs}`);
+      process.exit(1);
+    }
+    const { data: fm } = matter(readFileSync(abs, "utf8"));
+    const lastVerified = normalizeVerifiedDate(fm.last_verified);
+    const d = computeDecay({
+      type: typeof fm.type === "string" ? fm.type : undefined,
+      last_verified: lastVerified,
+      evergreen: fm.evergreen === true,
+      config: loadDecayConfig(resolve(opts.notes)),
+    });
+    console.log(
+      JSON.stringify(
+        {
+          path: notePath,
+          type: fm.type ?? null,
+          last_verified: lastVerified ?? null,
+          evergreen: fm.evergreen === true,
+          multiplier: d.multiplier,
+          age_days: Math.round(d.age_days),
+          effective_half_life: d.effective_half_life,
+          reason: d.reason,
+        },
+        null,
+        2
+      )
+    );
+    process.exit(0);
+  });
+
 program.parse();

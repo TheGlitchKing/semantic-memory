@@ -2,8 +2,11 @@
 
 This file tracks the committed near-term direction for `@theglitchking/semantic-memory`. It's a planning surface — not a contract. Items move between sections as the work clarifies; the canonical state lives here in git.
 
-> **Current shipped version:** [v1.1.1](https://github.com/TheGlitchKing/semantic-sidekick/releases/tag/v1.1.1) (npm `latest`)
-> **Last updated:** 2026-05-09
+> **Current shipped version:** v1.2.3 on `main` (npm `latest`); v1.3.0 (confidence-decay core) in review on `feat/v1.3-confidence-decay`.
+> **Last updated:** 2026-07-10
+>
+> **v1.2 status:** COMPLETE — state consolidation (1.2.0), `/healthcheck --fix` + `code_symbols` lint + fresh-install CI smoke (1.2.3). The three items that slipped past 1.2.0/1.2.1/1.2.2 landed in 1.2.3.
+> **v1.3 status:** core SHIPPED (decay engine, search integration, `decay` surfacing, `verify_note`, `evergreen`, `decay-config`/`decay-trace`). Deferred within the v1.3 line: backlink hotness (flag-off), `decay_candidates` lint, and selection-logging telemetry (dependency for the v1.4 usage-feedback ranking). The `last_modified` split proved unnecessary for decay correctness — `last_verified` is already never bumped on edits.
 
 ## Legend
 
