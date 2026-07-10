@@ -5,6 +5,8 @@ import { resolve, join, dirname, relative } from "node:path";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import { planFixes, type PlannedFix } from "../core/healthcheck-fix.js";
 import { registerUpdateCommands } from "@theglitchking/claude-plugin-runtime";
 import {
   resolveTarget,
@@ -39,6 +41,74 @@ function runRelink(cwd: string) {
     env: { ...process.env, INIT_CWD: cwd },
     stdio: "inherit",
   });
+}
+
+interface FixOutcome {
+  check: string;
+  action: string;
+  status: "fixed" | "failed";
+  detail: string;
+}
+
+/**
+ * Execute a `--fix` plan. Actions are de-duplicated (running skill-link once
+ * covers every skill-link finding) and each is best-effort: a failure is captured
+ * as an outcome, never thrown. Returns one outcome per distinct action attempted.
+ */
+async function executeFixes(cwd: string, fixes: PlannedFix[]): Promise<FixOutcome[]> {
+  const outcomes: FixOutcome[] = [];
+  const actions = [...new Set(fixes.map((f) => f.action))];
+  for (const action of actions) {
+    const checks = fixes.filter((f) => f.action === action).map((f) => f.check).join(", ");
+    try {
+      switch (action) {
+        case "skill-link": {
+          runRelink(cwd);
+          outcomes.push({ check: checks, action, status: "fixed", detail: "re-linked skills" });
+          break;
+        }
+        case "state-migrate": {
+          const r = migrateState({ projectRoot: cwd, force: true });
+          outcomes.push({
+            check: checks,
+            action,
+            status: "fixed",
+            detail: `migrated ${r.migrated.length} file(s), resolved ${r.conflicts.length} conflict(s)`,
+          });
+          break;
+        }
+        case "mcp-reconcile": {
+          const reconcilePath = join(findSourceRoot(), "hooks", "reconcile.js");
+          if (!existsSync(reconcilePath)) {
+            outcomes.push({ check: checks, action, status: "failed", detail: "reconcile.js not found" });
+            break;
+          }
+          const mod = await import(pathToFileURL(reconcilePath).href);
+          mod.reconcile(cwd);
+          outcomes.push({ check: checks, action, status: "fixed", detail: "reconciled .mcp.json" });
+          break;
+        }
+        case "reindex": {
+          const bin = findLocalBin(cwd);
+          if (!bin) {
+            outcomes.push({ check: checks, action, status: "failed", detail: "no local bin to run reindex" });
+            break;
+          }
+          const vault = join(cwd, ".claude", ".vault");
+          const r = spawnSync("node", [bin, "--notes", vault, "--reindex"], { cwd, stdio: "pipe", timeout: 120_000 });
+          if (r.status === 0) {
+            outcomes.push({ check: checks, action, status: "fixed", detail: "reindexed vault" });
+          } else {
+            outcomes.push({ check: checks, action, status: "failed", detail: (r.stderr?.toString() || "reindex failed").slice(0, 200) });
+          }
+          break;
+        }
+      }
+    } catch (err: any) {
+      outcomes.push({ check: checks, action, status: "failed", detail: err?.message ?? String(err) });
+    }
+  }
+  return outcomes;
 }
 
 function findLocalBin(cwd: string): string | null {
@@ -600,10 +670,11 @@ program
 program
   .command("healthcheck")
   .description(
-    "Verify the local install starts cleanly + run drift detection. Self-heals common npx-cache corruption (ERR_MODULE_NOT_FOUND). With --fast, skips the slow tier (full vault lint).",
+    "Verify the local install starts cleanly + run drift detection. Self-heals common npx-cache corruption (ERR_MODULE_NOT_FOUND). With --fast, skips the slow tier (full vault lint). With --fix, auto-applies safe fixes for fixable findings.",
   )
   .option("--fast", "Run only the fast-tier drift checks (file-system probes). Skips the slow tier (full vault lint).", false)
   .option("--json", "Emit structured JSON output instead of human-readable text.", false)
+  .option("--fix", "Auto-apply safe fixes for fixable drift findings (re-link skills, reconcile .mcp.json, reindex, migrate state). Findings that need human review are reported, not touched.", false)
   .action(async (opts) => {
     const cwd = process.cwd();
     const bin = findLocalBin(cwd);
@@ -615,97 +686,91 @@ program
 
     // 1. Warn if .mcp.json uses the fragile form.
     const mcpPath = join(cwd, ".mcp.json");
-    if (existsSync(mcpPath)) {
+    if (existsSync(mcpPath) && !opts.json) {
       const data = readJsonSafe(mcpPath);
       const entries = data?.mcpServers && typeof data.mcpServers === "object" ? Object.entries<any>(data.mcpServers) : [];
       const fragile = entries.filter(([, e]) => isNpxForm(e)).map(([k]) => k);
       if (fragile.length > 0) {
-        console.warn(
-          `⚠️  .mcp.json uses the fragile npx-@latest form for: ${fragile.join(", ")}`,
-        );
+        console.warn(`⚠️  .mcp.json uses the fragile npx-@latest form for: ${fragile.join(", ")}`);
         console.warn(`   Rewrite to the stable form:`);
         console.warn(`     npx --no @theglitchking/semantic-memory normalize-config`);
       }
     }
 
-    // 2. Smoke-test the local bin.
-    const r = spawnSync("node", [bin, "--version"], { cwd, stdio: "pipe", timeout: 15_000 });
-    if (r.status === 0) {
-      console.log(`✓ local install starts cleanly (v${r.stdout?.toString().trim()})`);
-      process.exit(0);
-    }
-
-    const stderr = r.stderr?.toString() ?? "";
-
-    // 3. Self-heal ERR_MODULE_NOT_FOUND in npx cache (rare but the classic
-    //    failure mode that triggered 0.10.0). Extract the offending npx cache
-    //    dir from the error message, rm -rf it, retry once.
-    if (stderr.includes("ERR_MODULE_NOT_FOUND")) {
-      const match = stderr.match(/([\/~][^'"\s]*\/_npx\/[^\/'"\s]+)/);
-      if (match) {
-        const bad = match[1];
-        console.warn(`detected broken npx cache at ${bad} — clearing and retrying...`);
-        try { rmSync(bad, { recursive: true, force: true }); } catch {}
-        const r2 = spawnSync("node", [bin, "--version"], { cwd, stdio: "pipe", timeout: 15_000 });
-        if (r2.status === 0) {
-          console.log(`✓ cleared npx cache and verified (v${r2.stdout?.toString().trim()})`);
-          process.exit(0);
-        }
-        console.error(`retry still failed:\n${r2.stderr?.toString() || ""}`);
+    // 2. Smoke-test the local bin (with npx-cache self-heal on ERR_MODULE_NOT_FOUND).
+    //    Unlike prior versions, this does NOT exit early — drift detection and
+    //    --fix always run afterwards.
+    let smokeOk = false;
+    let smokeVersion = "";
+    {
+      const r = spawnSync("node", [bin, "--version"], { cwd, stdio: "pipe", timeout: 15_000 });
+      if (r.status === 0) {
+        smokeOk = true;
+        smokeVersion = r.stdout?.toString().trim() ?? "";
       } else {
-        console.error(`ERR_MODULE_NOT_FOUND but could not locate offending cache path in the error.`);
+        const stderr = r.stderr?.toString() ?? "";
+        if (stderr.includes("ERR_MODULE_NOT_FOUND")) {
+          const match = stderr.match(/([\/~][^'"\s]*\/_npx\/[^\/'"\s]+)/);
+          if (match) {
+            const bad = match[1];
+            if (!opts.json) console.warn(`detected broken npx cache at ${bad} — clearing and retrying...`);
+            try { rmSync(bad, { recursive: true, force: true }); } catch {}
+            const r2 = spawnSync("node", [bin, "--version"], { cwd, stdio: "pipe", timeout: 15_000 });
+            if (r2.status === 0) {
+              smokeOk = true;
+              smokeVersion = r2.stdout?.toString().trim() ?? "";
+            } else if (!opts.json) {
+              console.error(`retry still failed:\n${r2.stderr?.toString() || ""}`);
+            }
+          }
+        }
+        if (!smokeOk && !opts.json && stderr) console.error(stderr);
+      }
+    }
+    if (smokeOk && !opts.json) console.log(`✓ local install starts cleanly (v${smokeVersion})`);
+
+    // 3. Run drift detection.
+    const { runHealthcheck, formatDriftBanner, filterToDrift } = await import("../core/healthcheck.js");
+    const vaultCandidate = join(cwd, ".claude", ".vault");
+    const vaultPath = existsSync(vaultCandidate) ? vaultCandidate : undefined;
+    let result = await runHealthcheck({ projectRoot: cwd, vaultPath, tier: opts.fast ? "fast" : "all", force: true });
+
+    // 4. Apply fixes if requested.
+    let fixOutcomes: FixOutcome[] = [];
+    let plan = { fixes: [] as PlannedFix[], skipped: [] as { check: string; reason: string }[] };
+    if (opts.fix) {
+      plan = planFixes(filterToDrift(result));
+      if (plan.fixes.length > 0) {
+        fixOutcomes = await executeFixes(cwd, plan.fixes);
+        // Re-run fast-tier drift to reflect the post-fix state.
+        result = await runHealthcheck({ projectRoot: cwd, vaultPath, tier: opts.fast ? "fast" : "all", force: true });
       }
     }
 
-    if (stderr) console.error(stderr);
-    if (r.status !== 0) {
-      console.error(`local install failed (exit ${r.status})`);
-      process.exit(1);
-    }
-  });
-
-// Append drift detection to the healthcheck handler (Phase 8). Wraps the original
-// handler — the function above runs first (npx-cache self-heal), then drift detection
-// runs and prints additional findings. --fast skips the slow tier (full vault lint).
-const driftHealthcheckActionPostprocess = async (opts: { fast?: boolean; json?: boolean }) => {
-  try {
-    const { runHealthcheck, formatDriftBanner } = await import("../core/healthcheck.js");
-    const projectRoot = process.cwd();
-    // For the auto-derived vault path, prefer .claude/.vault if present
-    const vaultCandidate = join(projectRoot, ".claude", ".vault");
-    const vaultPath = existsSync(vaultCandidate) ? vaultCandidate : undefined;
-    const result = await runHealthcheck({
-      projectRoot,
-      vaultPath,
-      tier: opts.fast ? "fast" : "all",
-      force: true,
-    });
+    // 5. Emit.
     if (opts.json) {
-      console.log(JSON.stringify(result, null, 2));
-      return;
-    }
-    const banner = formatDriftBanner(result);
-    if (banner) {
-      console.log("");
-      console.log(banner);
+      console.log(JSON.stringify({ smoke: { ok: smokeOk, version: smokeVersion }, result, fix: opts.fix ? { plan, outcomes: fixOutcomes } : undefined }, null, 2));
     } else {
-      console.log("");
-      console.log(`✓ no drift detected (${result.findings.length} checks ran in ${result.duration_ms}ms)`);
+      if (opts.fix) {
+        if (fixOutcomes.length === 0 && plan.skipped.length === 0) {
+          console.log(`\n✓ nothing to fix`);
+        } else {
+          console.log(`\n--fix applied ${fixOutcomes.filter((o) => o.status === "fixed").length}/${fixOutcomes.length} action(s):`);
+          for (const o of fixOutcomes) console.log(`  ${o.status === "fixed" ? "✓" : "✗"} ${o.action} (${o.check}) — ${o.detail}`);
+          for (const s of plan.skipped) console.log(`  • skipped ${s.check} — ${s.reason}`);
+        }
+      }
+      const banner = formatDriftBanner(result);
+      if (banner) {
+        console.log("");
+        console.log(banner);
+      } else {
+        console.log(`\n✓ no drift detected (${result.findings.length} checks ran in ${result.duration_ms}ms)`);
+      }
     }
-  } catch (err: any) {
-    console.error(`drift check threw: ${err?.message ?? err}`);
-  }
-};
 
-// Wire the drift-detection postprocess. We do this by attaching to the existing
-// healthcheck command's postAction hook so the original handler still runs first.
-const healthcheckCmd = program.commands.find((c) => c.name() === "healthcheck");
-if (healthcheckCmd) {
-  healthcheckCmd.hook("postAction", async (thisCmd) => {
-    const opts = thisCmd.opts();
-    await driftHealthcheckActionPostprocess({ fast: !!opts.fast, json: !!opts.json });
+    process.exit(smokeOk ? 0 : 1);
   });
-}
 
 // --- Skill bundler (Phase 6) ---
 

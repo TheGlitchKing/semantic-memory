@@ -2,6 +2,26 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.2.3] - 2026-07-10 — Complete the v1.2 hygiene line: `--fix`, code-symbol drift, CI smoke
+
+Ships the three v1.2 roadmap items that slipped when 1.2.1/1.2.2 were preempted by defect fixes. All three are additive; no tool is removed and default behavior is unchanged unless a flag is passed.
+
+### Added
+
+- **`healthcheck --fix` — auto-remediation of safe drift.** `/healthcheck --fix` (and the `semantic-memory healthcheck --fix` CLI) now applies **safe, idempotent, non-destructive** fixes for fixable findings and re-runs drift detection to show the post-fix state. Actions: re-link skills (`skill-link`), reconcile `.mcp.json` (`mcp-reconcile`), reindex the vault (`reindex`), and migrate legacy state (`state-migrate`). Findings that touch user-authored content — stale notes, broken wikilinks, hand-edited `AGENTS.md` — are reported for human review, never auto-changed. The decision logic lives in a pure, unit-tested planner (`src/core/healthcheck-fix.ts`); the CLI executes the plan. The `legacy_state_files` finding's `fixable_via` changed from `none` to `state-migrate`.
+- **`lint_vault({checks: ["code_symbols"]})` — code-path drift detection.** New opt-in lint rule: scans note inline-code spans for repo-relative file-path references and flags ones whose first segment IS a real directory in the repo but whose full path no longer exists (a stale reference to a moved/deleted file). Anchoring on an existing first segment keeps false positives low — paths belonging to other repos are skipped. Fails open (silent no-op) outside a code repo. **Opt-in only:** never part of the default `lint_vault` report or the healthcheck slow tier, so existing behavior is byte-stable. Scope note: this validates *path* references; fine-grained symbol-name checking needs a real symbol index and is deferred to the v1.4 lexicon arc, which will extend this same `code_symbols` rule.
+- **Fresh-install CI smoke test.** New `scripts/smoke-install.sh` + `.github/workflows/ci.yml` `smoke` job: `npm pack` → install the tarball into a throwaway consumer project → assert (1) `bin --version` reports the current version, (2) the CLI loads all subcommands, (3) every runtime file is actually in the tarball, and (4) the SessionStart `reconcile` wiring populates `.mcp.json` on a fresh install. This mechanically prevents the v1.1.0-class packaging bug (the highest-ROI item on the v1.2 roadmap).
+
+### Fixed
+
+- **Drift detection now runs on healthy installs.** The `healthcheck` CLI command called `process.exit(0)` immediately after the install smoke-test succeeded, so the drift-detection `postAction` hook (added in v1.1) never ran on a clean install — it only surfaced when the smoke-test failed. The command is now a single coherent action: smoke-test → drift → optional `--fix` → emit, exiting once at the end. The `formatDriftBanner` line advertising `/healthcheck --fix` is no longer a promise for a flag that doesn't exist.
+
+### Tests
+
+- New: `test/unit/healthcheck-fix.test.ts` (planner: safe-action mapping, human-review routing, ok-finding filtering).
+- New: `test/unit/lint-code-symbols.test.ts` (drift on a stale path, no-flag on an existing path, other-repo skip, URL/glob rejection, opt-in gating, fail-open outside a code repo).
+- Updated: tool-surface regression snapshots (additive `code_symbols` enum value + description on `lint_vault`).
+
 ## [1.2.2] - 2026-06-27 — Plugin-aware hook-registration check + manifest version sync
 
 ### Fixed

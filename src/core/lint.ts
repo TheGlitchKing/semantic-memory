@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
 import { loadSchema, validateNote, type LintFinding, type VaultSchema } from "./schema.js";
+import { deriveProjectRoot } from "./session.js";
 
 export interface LintReport {
   schemaPath: string;
@@ -12,6 +14,7 @@ export interface LintReport {
     missing_provenance: LintFinding[];
     stale: LintFinding[];
     broken_links: LintFinding[];
+    code_symbols: LintFinding[];
   };
   counts: {
     errors: number;
@@ -22,7 +25,20 @@ export interface LintReport {
 
 export async function lintVault(
   notesPath: string,
-  opts: { pathGlob?: string; schemaOverride?: VaultSchema; todayIso?: string } = {}
+  opts: {
+    pathGlob?: string;
+    schemaOverride?: VaultSchema;
+    todayIso?: string;
+    /**
+     * When true, run the code-symbol drift check: flag inline-code file-path
+     * references in notes that no longer exist under the project root. Opt-in
+     * (off by default) so the standard report and the healthcheck slow tier stay
+     * quiet and byte-stable. Fails open when the project root is not a code repo.
+     */
+    checkCodeSymbols?: boolean;
+    /** Override the project root for code-symbol resolution (default: derived from notesPath). */
+    projectRoot?: string;
+  } = {}
 ): Promise<LintReport> {
   const schema = opts.schemaOverride ?? (await loadSchema(notesPath));
   const files = await glob(opts.pathGlob ?? "**/*.md", {
@@ -45,9 +61,15 @@ export async function lintVault(
     }
   }
 
+  // Code-symbol drift is opt-in and only meaningful against a real code repo.
+  const codeRoot = opts.checkCodeSymbols
+    ? resolveCodeRoot(opts.projectRoot ?? deriveProjectRoot(notesPath))
+    : null;
+
   for (const [rel, raw] of rawByPath) {
     findings.push(...validateNote(rel, raw, schema, { todayIso: opts.todayIso }));
     findings.push(...findBrokenLinks(rel, raw, knownNames));
+    if (codeRoot) findings.push(...findCodeSymbolDrift(rel, raw, codeRoot));
   }
 
   const byRule = {
@@ -55,6 +77,7 @@ export async function lintVault(
     missing_provenance: findings.filter((f) => f.rule === "missing_provenance"),
     stale: findings.filter((f) => f.rule === "stale"),
     broken_links: findings.filter((f) => f.rule === "broken_links"),
+    code_symbols: findings.filter((f) => f.rule === "code_symbols"),
   };
   const errors = findings.filter((f) => f.severity === "error").length;
   const warnings = findings.filter((f) => f.severity === "warn").length;
@@ -95,6 +118,80 @@ function findBrokenLinks(
     }
   }
   return findings;
+}
+
+/** File extensions we treat as "this looks like a source/doc file reference". */
+const CODE_EXTENSIONS = new Set([
+  "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rb", "go", "rs", "java", "kt",
+  "c", "h", "cpp", "hpp", "cs", "php", "swift", "scala", "sh", "bash", "sql",
+  "json", "yaml", "yml", "toml", "css", "scss", "html", "vue", "svelte", "md",
+]);
+
+/**
+ * Decide whether `root` is a real code repository worth checking paths against.
+ * Fails open (returns null) for non-code roots so the check is a silent no-op
+ * outside a project — e.g. a standalone vault, or when babel-fish isn't present.
+ */
+function resolveCodeRoot(root: string): string | null {
+  if (!root || !existsSync(root)) return null;
+  const markers = ["package.json", ".git", "src", "lib", "pyproject.toml", "go.mod", "Cargo.toml"];
+  return markers.some((m) => existsSync(join(root, m))) ? root : null;
+}
+
+/**
+ * Code-symbol drift: scan a note's inline-code spans for repo-relative file-path
+ * references and flag ones whose first path segment IS a real directory in the repo
+ * but whose full path no longer exists — i.e. a stale reference to a moved/deleted
+ * file. Anchoring on an existing first segment keeps false positives low: paths
+ * belonging to other repos (whose top-level dir isn't present here) are skipped.
+ *
+ * Scope note: this validates *path* references. Fine-grained symbol-name checking
+ * (function/class identifiers) needs a real symbol index and is planned for the
+ * v1.4 lexicon arc, which will extend this same `code_symbols` rule.
+ */
+function findCodeSymbolDrift(relPath: string, rawFileContent: string, codeRoot: string): LintFinding[] {
+  const { content } = matter(rawFileContent);
+  // Inline-code spans only (single backtick). Fenced blocks are illustrative and
+  // over-match. Strip fenced blocks first so their backticks don't confuse the span regex.
+  const withoutFences = content.replace(/```[\s\S]*?```/g, "");
+  const findings: LintFinding[] = [];
+  const seen = new Set<string>();
+  const re = /`([^`\n]+)`/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(withoutFences)) !== null) {
+    let token = m[1].trim();
+    if (!looksLikeRepoPath(token)) continue;
+    token = token.replace(/^\.\//, "");
+    if (seen.has(token)) continue;
+    seen.add(token);
+    const firstSeg = token.split("/")[0];
+    // Only judge paths anchored in a directory that actually exists in this repo.
+    if (!existsSync(join(codeRoot, firstSeg))) continue;
+    if (!existsSync(join(codeRoot, token))) {
+      findings.push({
+        path: relPath,
+        rule: "code_symbols",
+        severity: "warn",
+        message: `inline code path \`${token}\` does not exist under the project root (stale reference?)`,
+      });
+    }
+  }
+  return findings;
+}
+
+function looksLikeRepoPath(token: string): boolean {
+  if (!token.includes("/")) return false;
+  if (/\s/.test(token)) return false; // commands, prose
+  if (token.includes("://")) return false; // URLs
+  if (/[*?\[\]{}()<>|]/.test(token)) return false; // globs / shell / placeholders
+  if (token.startsWith("/") || token.startsWith("~")) return false; // absolute / home
+  const normalized = token.replace(/^\.\//, "");
+  if (normalized.startsWith("..")) return false; // escapes the repo
+  const last = normalized.split("/").pop() ?? "";
+  const dot = last.lastIndexOf(".");
+  if (dot <= 0) return false; // no extension → likely a dir or a symbol like a/b
+  const ext = last.slice(dot + 1).toLowerCase();
+  return CODE_EXTENSIONS.has(ext);
 }
 
 export function formatLintReport(report: LintReport, opts: { rule?: keyof LintReport["byRule"] } = {}): string {
