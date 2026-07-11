@@ -3,37 +3,5 @@
     "allow": [],
     "deny": []
   },
-  "env": {},
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./hooks/vault-context.js"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./hooks/vault-context.js"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./hooks/vault-context.js"
-          }
-        ]
-      }
-    ]
-  }
+  "env": {}
 }

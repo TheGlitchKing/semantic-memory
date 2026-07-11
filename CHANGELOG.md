@@ -2,6 +2,20 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.3.2] - 2026-07-10 — Fix hook double-registration (double vault-context injection)
+
+### Fixed
+
+- **`vault-context.js` no longer fires twice per prompt.** On a plugin install the plugin's own `hooks/hooks.json` registers SessionStart/UserPromptSubmit/Stop — but this repo's committed `.claude/settings.json` *also* registered the same three events (legacy dogfooding scaffolding from the Phase 2 era, before the plugin was marketplace-installable). With the plugin enabled, both sources fired, so `vault-context.js` ran twice and the `<vault-context>` block was injected **twice on every prompt** (~1.5k tokens of duplicated overhead per turn). Removed the redundant `hooks` block from `.claude/settings.json`; the plugin's `hooks/hooks.json` is now the single source of truth.
+
+### Added
+
+- **`hook_double_registration` healthcheck finding** (fast tier). Detects the same hook event declared in BOTH `.claude/settings.json` and the plugin's `hooks/hooks.json` and warns that each hook fires twice, pointing at the fix. Only fires in a plugin context (`CLAUDE_PLUGIN_ROOT` present); a silent no-op for npm-dependency installs, which legitimately register via `settings.json`. This is the durable guard so the double-injection can't silently recur on any install — the item flagged as v1.4 Phase 0.
+
+### Tests
+
+- New: `test/unit/healthcheck-double-hook.test.ts` (warns on overlap; no-op without `CLAUDE_PLUGIN_ROOT`; no warn on disjoint events). 331 tests green.
+
 ## [1.3.1] - 2026-07-10 — Selection-logging telemetry (the v1.4 precursor)
 
 Ships the two pieces deferred out of v1.3.0 so retrieval can learn from its own outcomes. v1.3.1 only **observes** — there is no ranking change (usage-feedback ranking is v1.4). Strictly local, append-only, opt-out.

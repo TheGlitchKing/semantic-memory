@@ -6,7 +6,7 @@ audience: [developers, admin]
 tags: [drift, healthcheck, sessionstart, auto-check, install-health, v1.1, fix]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.0'
+version: '1.3.2'
 purpose: Operational guide to drift detection. The fast-tier auto-check that fires on every SessionStart, the manual /healthcheck deep audit, what each finding means, and how to fix them.
 load_priority: 7
 ---
@@ -28,6 +28,7 @@ The SessionStart hook (`hooks/vault-context.js`) runs these checks in parallel. 
 |---|---|---|
 | `mcp_json_entry` | `<project>/.mcp.json` | Present but missing a server entry for `semantic-vault`/`semantic-sidekick`/`semantic-memory` |
 | `hook_registration` | `<project>/.claude/settings.json` | Missing one of `SessionStart` / `UserPromptSubmit` / `Stop` hook entries |
+| `hook_double_registration` (v1.3.2+) | `settings.json` × plugin `hooks/hooks.json` | Same event registered in BOTH → each hook fires twice (plugin context only) |
 | `agents_contract` | `<project>/AGENTS.md` | File exists but lacks managed-block markers |
 | `session_staleness` | `<project>/.claude/.semantic-memory/session.json` | Open session with `last_activity_at` >24h ago |
 | `legacy_state_files` (v1.2+) | `<project>/.claude/.sidekick-*` | Legacy state files present (read-fallback works, but v2.0 will remove) |
@@ -114,6 +115,12 @@ or:
 ```bash
 /relink                  # re-runs the postinstall that writes .mcp.json
 ```
+
+### `hook_double_registration` warn (v1.3.2+)
+
+The same hook event (SessionStart / UserPromptSubmit / Stop) is registered in BOTH `.claude/settings.json` AND the plugin's own `hooks/hooks.json`. On a plugin install the plugin already registers its hooks, so the duplicate in `settings.json` makes each hook run **twice** — e.g. the `<vault-context>` block injected twice per prompt (~1.5k tokens of duplicated overhead per turn).
+
+**Fix:** remove the `"hooks"` block from `.claude/settings.json`. The plugin's `hooks/hooks.json` is the single source of truth for plugin installs. Not auto-fixed by `--fix` (editing your `settings.json` is your call). Only fires in a plugin context (`CLAUDE_PLUGIN_ROOT` present); npm-dependency installs register via `settings.json` legitimately and never see this finding.
 
 ### `hook_registration` warn
 
