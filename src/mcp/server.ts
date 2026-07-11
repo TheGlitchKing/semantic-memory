@@ -13,6 +13,7 @@ import { registerGraphTools } from "./tools/graph.js";
 import { registerSystemTools } from "./tools/system.js";
 import { registerContractTools } from "./tools/contract.js";
 import { registerSessionTools } from "./tools/session.js";
+import { useMinimalToolSurface } from "../core/tools-config.js";
 
 export type { ServerOptions } from "./context.js";
 
@@ -24,17 +25,24 @@ export async function createServer(notesPath: string, options: ServerOptions = {
     version: "1.0.0",
   });
 
+  // Conditional tool registration (v1.4 Phase 7, DEFAULT OFF). When enabled via
+  // tools.conditional AND the active mode is outage-silence, register only the
+  // core read/search surface. Default → full surface (unchanged).
+  const minimal = useMinimalToolSurface(notesPath);
+
   registerSearchTools(server, ctx);
   registerReadTools(server, ctx);
-  registerWriteTools(server, ctx);
-  registerPatchTools(server, ctx);
-  registerLintTools(server, ctx);
-  registerLogTools(server, ctx);
-  registerMetadataTools(server, ctx);
-  registerGraphTools(server, ctx);
   registerSystemTools(server, ctx);
-  registerContractTools(server, ctx);
-  registerSessionTools(server, ctx);
+  if (!minimal) {
+    registerWriteTools(server, ctx);
+    registerPatchTools(server, ctx);
+    registerLintTools(server, ctx);
+    registerLogTools(server, ctx);
+    registerMetadataTools(server, ctx);
+    registerGraphTools(server, ctx);
+    registerContractTools(server, ctx);
+    registerSessionTools(server, ctx);
+  }
 
   if (options.waitForReady) {
     await ctx.tryLoadCachedIndex();

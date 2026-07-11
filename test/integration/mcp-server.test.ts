@@ -430,6 +430,30 @@ describe("MCP Server", () => {
     });
   });
 
+  describe("Section-targeted read (v1.4)", () => {
+    it("read_note with `section` returns only that heading's section", async () => {
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "sectioned.md",
+          content: "# Doc\n\n## Purpose\n\nwhat it is\n\n## Knobs\n\n- turn the dial\n\n## Log\n\nhistory\n",
+          frontmatter: { title: "Sectioned", status: "active", type: "note" },
+        },
+      });
+      const res = await client.callTool({ name: "read_note", arguments: { path: "sectioned.md", section: "Knobs" } });
+      const text = (res.content as any)[0].text;
+      expect(text).toContain("## Knobs");
+      expect(text).toContain("turn the dial");
+      expect(text).not.toContain("Purpose");
+      expect(text).not.toContain("history");
+
+      const miss = await client.callTool({ name: "read_note", arguments: { path: "sectioned.md", section: "Nope" } });
+      expect((miss.content as any)[0].text).toContain("not found");
+
+      await client.callTool({ name: "delete_note", arguments: { path: "sectioned.md", confirm: true } });
+    });
+  });
+
   describe("Symptom-keyed indexing (v1.4)", () => {
     it("surfaces a note via a terse symptom query that its prose doesn't contain", async () => {
       // Body deliberately avoids the symptom words — only the symptoms: frontmatter has them.
