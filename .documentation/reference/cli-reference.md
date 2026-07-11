@@ -6,8 +6,8 @@ audience: [developers]
 tags: [cli, commands, flags, reference]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.0'
-purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, and v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace).
+version: '1.3.1'
+purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace), and v1.3.1 selection-stats telemetry introspection.
 load_priority: 9
 ---
 
@@ -32,6 +32,7 @@ Binary: `node node_modules/@theglitchking/semantic-memory/bin/semantic-memory` (
 | `migrate-state` (v1.2+) | Migration | Move legacy `.claude/.sidekick-*` files under `.claude/.semantic-memory/` |
 | `decay-config` (v1.3+) | Info | Print the active confidence-decay config as JSON |
 | `decay-trace` (v1.3+) | Info | Print the decay calculation for one note as JSON |
+| `selection-stats` (v1.3.1+) | Info | Print selection-log telemetry stats (searches, selections, most/never-cited notes) |
 | `update` / `policy` | Plugin runtime | Inherited from `@theglitchking/claude-plugin-runtime` |
 
 All subcommands accept `--help`.
@@ -289,6 +290,27 @@ Prints the decay calculation for a single note as JSON:
 **Use when:** debugging why a note ranks where it does in `search_semantic`/`search_hybrid` results.
 
 **See:** [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml)
+
+---
+
+## `selection-stats` (v1.3.1+) — telemetry introspection
+
+```bash
+semantic-memory selection-stats --notes <path> [--json]
+```
+
+Reads `<path>/.claude/.semantic-memory/selection.jsonl` (written by `search_semantic`/`search_hybrid`/`read_note` — see [configuration-reference.md](./configuration-reference.md#telemetry-vaultschemayml)) and prints:
+
+- **searches** — total `search`-kind entries logged.
+- **selections** — total `selection`-kind entries logged (i.e. `read_note` calls).
+- **most-cited notes** — notes read most often, most first.
+- **retrieved-but-never-cited notes** — notes that showed up in search results but were never subsequently read; a candidate list for "is this note actually useful, or just matching on keywords."
+
+Human-readable text by default; `--json` emits the raw counts/lists for scripting.
+
+No-op (empty stats, exit 0) when `selection.jsonl` doesn't exist yet — e.g. fresh vault, or `telemetry.enabled: false`.
+
+**Use when:** sanity-checking whether telemetry is actually capturing activity, or scoping which notes are candidates for the `decay_candidates` lint / manual `verify_note` attention. See [mcp-tools-reference.md](./mcp-tools-reference.md) for `lint_vault({checks:["decay_candidates"]})`.
 
 ---
 

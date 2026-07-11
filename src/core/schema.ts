@@ -23,7 +23,7 @@ export type Severity = "warn" | "error";
 
 export interface LintFinding {
   path: string;
-  rule: "missing_provenance" | "stale" | "schema_violations" | "broken_links" | "code_symbols";
+  rule: "missing_provenance" | "stale" | "schema_violations" | "broken_links" | "code_symbols" | "decay_candidates";
   severity: Severity;
   message: string;
 }

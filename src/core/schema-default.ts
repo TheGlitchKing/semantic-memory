@@ -80,4 +80,12 @@ decay:
   hotness_boost:
     enabled: false              # extend half-life for heavily-backlinked notes (opt-in)
     cap: 2.0
+
+# Selection-logging telemetry (v1.3.1). Records what search returned and which
+# note the answer used, to a LOCAL append-only JSONL at
+# .claude/.semantic-memory/selection.jsonl (gitignored). Never leaves the machine.
+# Feeds the decay_candidates lint and (later) usage-feedback ranking. Set
+# enabled: false to disable all logging.
+telemetry:
+  enabled: true
 `;
