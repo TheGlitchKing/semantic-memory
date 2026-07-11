@@ -36,6 +36,7 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval": "vitest run test/retrieval-eval",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build",
     "postinstall": "node scripts/link-skills.js"
