@@ -47,6 +47,10 @@ types:
     description: External reference (paper, blog post, doc) used as provenance
     required: [title, status, source]
 
+  alias:
+    description: Learned human→artifact vocabulary entry (v1.4 lexicon). Maps the human's phrasing to a concrete path/symbol.
+    required: [canonical]
+
 # Severity values for gotcha type.
 severity_enum: [low, medium, high, critical]
 

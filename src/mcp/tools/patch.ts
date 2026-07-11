@@ -7,6 +7,7 @@ import { buildIngestChangeSet } from "../../core/ingest.js";
 import { installDefaultSchema } from "../../core/schema.js";
 import { logEvent } from "../../core/log.js";
 import { computeDecay, loadDecayConfig } from "../../core/decay.js";
+import { addAlias, removeAlias, compileLexicon, loadLexiconCache, expandQuery } from "../../core/lexicon.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
@@ -334,6 +335,45 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       return ctx.textResponse(
         JSON.stringify({ path, last_verified: today, decay_multiplier: d.multiplier }, null, 2)
       );
+    }
+  );
+
+  server.tool(
+    "manage_lexicon",
+    "Manage the learned human→artifact lexicon (v1.4). `action`: add (upsert a canonical target + the human phrases that refer to it; bumps evidence_count on repeats), lookup (expand a query via matching alias phrases), list (all aliases), remove (by canonical), compile (rebuild the derived cache). The lexicon maps how THIS human names things to concrete paths/symbols.",
+    {
+      action: z.enum(["add", "lookup", "list", "remove", "compile"]),
+      canonical: z.string().optional().describe("For add/remove: the concrete target (note path or code symbol)."),
+      phrases: z.array(z.string()).optional().describe("For add: the human's verbatim phrases for the canonical target."),
+      query: z.string().optional().describe("For lookup: the utterance to expand via alias phrases."),
+      source: z.enum(["learned", "authored"]).optional().describe("For add: provenance of the binding (default learned)."),
+    },
+    async ({ action, canonical, phrases, query, source }) => {
+      switch (action) {
+        case "add": {
+          if (!canonical || !phrases || phrases.length === 0) return ctx.textResponse("manage_lexicon add requires `canonical` and non-empty `phrases`");
+          const r = await addAlias(ctx.notesPath, { canonical, phrases, source });
+          return ctx.textResponse(JSON.stringify(r, null, 2));
+        }
+        case "lookup": {
+          if (!query) return ctx.textResponse("manage_lexicon lookup requires `query`");
+          const aliases = await loadLexiconCache(ctx.notesPath);
+          const { expanded, matched } = expandQuery(aliases, query);
+          return ctx.textResponse(JSON.stringify({ query, expanded, matched }, null, 2));
+        }
+        case "list": {
+          return ctx.textResponse(JSON.stringify(await loadLexiconCache(ctx.notesPath), null, 2));
+        }
+        case "remove": {
+          if (!canonical) return ctx.textResponse("manage_lexicon remove requires `canonical`");
+          const removed = await removeAlias(ctx.notesPath, canonical);
+          return ctx.textResponse(removed ? `removed alias: ${canonical}` : `no alias for canonical: ${canonical}`);
+        }
+        case "compile": {
+          const entries = await compileLexicon(ctx.notesPath);
+          return ctx.textResponse(`compiled ${entries.length} alias(es) to lexicon-cache.json`);
+        }
+      }
     }
   );
 }

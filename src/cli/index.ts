@@ -961,6 +961,43 @@ program
     process.exit(0);
   });
 
+// --- Lexicon (v1.4) ---
+
+const lexiconCmd = program.command("lexicon").description("Manage the learned human→artifact lexicon (aliases).");
+
+lexiconCmd
+  .command("list")
+  .description("List all aliases in the lexicon.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { loadLexiconCache } = await import("../core/lexicon.js");
+    console.log(JSON.stringify(await loadLexiconCache(resolve(opts.notes)), null, 2));
+    process.exit(0);
+  });
+
+lexiconCmd
+  .command("compile")
+  .description("Rebuild the derived lexicon cache from the lexicon/ notes.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { compileLexicon } = await import("../core/lexicon.js");
+    const entries = await compileLexicon(resolve(opts.notes));
+    console.log(`compiled ${entries.length} alias(es)`);
+    process.exit(0);
+  });
+
+lexiconCmd
+  .command("add <canonical> <phrases...>")
+  .description("Upsert an alias: a canonical target and the human phrases that refer to it.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--authored", "Mark as human-authored (default: learned)")
+  .action(async (canonical: string, phrases: string[], opts) => {
+    const { addAlias } = await import("../core/lexicon.js");
+    const r = await addAlias(resolve(opts.notes), { canonical, phrases, source: opts.authored ? "authored" : "learned" });
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(0);
+  });
+
 // --- Selection-logging telemetry introspection (v1.3.1) ---
 
 program
