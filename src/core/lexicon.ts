@@ -161,6 +161,33 @@ export async function addAlias(
   return { path: rel, created: true, evidence_count, confidence };
 }
 
+export interface AliasConflict {
+  phrase: string;
+  canonicals: string[];
+}
+
+/**
+ * Find conflicting bindings: the same (normalized) phrase mapping to more than one
+ * canonical target. A wrong alias silently misroutes every future query with that
+ * phrase, so conflicts are surfaced (never auto-resolved) for a human to fix.
+ */
+export function findAliasConflicts(aliases: AliasEntry[]): AliasConflict[] {
+  const byPhrase = new Map<string, Set<string>>();
+  for (const a of aliases) {
+    for (const p of a.phrases) {
+      const n = normalizePhrase(p);
+      if (!n) continue;
+      if (!byPhrase.has(n)) byPhrase.set(n, new Set());
+      byPhrase.get(n)!.add(a.canonical);
+    }
+  }
+  const conflicts: AliasConflict[] = [];
+  for (const [phrase, canonicals] of byPhrase) {
+    if (canonicals.size > 1) conflicts.push({ phrase, canonicals: [...canonicals].sort() });
+  }
+  return conflicts.sort((a, b) => a.phrase.localeCompare(b.phrase));
+}
+
 /** Remove an alias note by canonical. Returns whether one was removed. */
 export async function removeAlias(vaultPath: string, canonical: string): Promise<boolean> {
   const existing = await compileLexicon(vaultPath);
