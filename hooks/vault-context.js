@@ -132,13 +132,42 @@ function queryRecentLogViaCli(cliBin, vaultPath, sinceIso, limit = 20) {
   }
 }
 
+// Injection hygiene (v1.4 Phase 2). The <vault-context> block is per-prompt
+// overhead, so it earns its tokens or stays out:
+//  - score gate: if the best hit is weak, inject nothing (a "thanks"/"proceed"
+//    prompt shouldn't drag six 0.2-score hits into context). Tunable via
+//    SEMANTIC_MEMORY_INJECT_MIN_SCORE.
+//  - dedup by basename: collapse archive/x.md + archive/pre-restructure/x.md to
+//    one slot (keep the highest-scored), so retired-doc twins stop burning slots.
+//  - top-3, not top-6.
+//  - one compact instructions line — the full cite-or-deflect rule lives once in
+//    CLAUDE.md and the vault-first skill, not repeated in full every prompt.
+const INJECT_MIN_SCORE = Number(process.env.SEMANTIC_MEMORY_INJECT_MIN_SCORE) || 0.35;
+
+function dedupeByBasename(hits) {
+  const seen = new Set();
+  const out = [];
+  for (const h of hits) {
+    const base = String(h.path || "").split("/").pop();
+    if (seen.has(base)) continue;
+    seen.add(base);
+    out.push(h);
+  }
+  return out;
+}
+
 export function formatContextBlock(source, query, hits) {
   if (!hits || hits.length === 0) return "";
+  // Score gate: skip injection entirely when nothing is strongly relevant.
+  const topScore = Math.max(...hits.map((h) => (typeof h.score === "number" ? h.score : 0)));
+  if (topScore < INJECT_MIN_SCORE) return "";
+
+  const shown = dedupeByBasename(hits).slice(0, 3);
   const lines = [];
   lines.push(`<vault-context source="${source}" query="${escapeAttr(query)}">`);
   lines.push(`The vault (semantic-memory) was proactively searched. Top hits:`);
   lines.push("");
-  for (const h of hits.slice(0, 6)) {
+  for (const h of shown) {
     const score = typeof h.score === "number" ? h.score.toFixed(2) : "";
     lines.push(`- \`${h.path}\`${score ? ` (score: ${score})` : ""}`);
     if (h.snippet) {
@@ -147,9 +176,44 @@ export function formatContextBlock(source, query, hits) {
     }
   }
   lines.push("");
-  lines.push(`Instructions: This block is injected on every prompt. Apply cite-or-deflect ONLY when the user's prompt is a project prose lookup (how/why/where does X work here, runbook/process question, gotcha or known-issue lookup). For those, read promising hits via \`mcp__semantic-vault__read_note\` and either cite the filenames or say "not in vault" and name the nearest misses. For meta/tool questions, debugging, status checks, directives ("proceed", "merge"), or conversational turns, ignore this block silently. Do NOT narrate "X unrelated" or "not in vault for this" on non-lookup prompts — that is noise, not honest deflection.`);
+  lines.push(`Instructions: Apply cite-or-deflect ONLY to project prose lookups (how/why/where does X work here) — cite the hit paths, or say "not in vault". For meta/tool/debug/status/directive/conversational prompts, ignore this block silently. Do NOT narrate "X unrelated" or "not in vault" on those.`);
   lines.push(`</vault-context>`);
   return lines.join("\n");
+}
+
+// --- Tier-1 lexicon query expansion (v1.4 Phase 6, deterministic) ---
+// Before embedding a user utterance, substitute/augment it with the canonical
+// targets of any learned alias phrases it contains, so "is the flaky thing fixed?"
+// searches as "...the flaky thing... src/core/indexer.ts". Pure string/table
+// lookup — no LLM, no spawn, reads the derived lexicon-cache.json only.
+
+function normalizePhrase(s) {
+  return String(s || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function readLexiconAliases(projectRoot) {
+  try {
+    const cachePath = join(projectRoot, ".claude", ".semantic-memory", "lexicon-cache.json");
+    if (!existsSync(cachePath)) return [];
+    const data = JSON.parse(readFileSync(cachePath, "utf8"));
+    return Array.isArray(data?.aliases) ? data.aliases : [];
+  } catch {
+    return [];
+  }
+}
+
+export function expandQueryViaLexicon(projectRoot, query) {
+  const aliases = readLexiconAliases(projectRoot);
+  if (aliases.length === 0) return query;
+  const nq = normalizePhrase(query);
+  const canonicals = [];
+  for (const a of aliases) {
+    const phrases = Array.isArray(a.phrases) ? a.phrases : [];
+    if (phrases.some((p) => p && nq.includes(normalizePhrase(p)))) {
+      if (a.canonical && !canonicals.includes(a.canonical)) canonicals.push(a.canonical);
+    }
+  }
+  return canonicals.length ? `${query} ${canonicals.join(" ")}` : query;
 }
 
 function escapeAttr(s) {
@@ -654,7 +718,10 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
     emit("UserPromptSubmit", "");
     return;
   }
-  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", prompt], 30_000);
+  // Tier-1 lexicon expansion: search with the alias-expanded query, but keep the
+  // original prompt for display in the block.
+  const searchQuery = expandQueryViaLexicon(projectRoot, prompt);
+  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", searchQuery], 30_000);
   state.recent = [fp, ...recent].slice(0, 10);
   saveFingerprints(projectRoot, state);
   const cue = detectCaptureCue(prompt);

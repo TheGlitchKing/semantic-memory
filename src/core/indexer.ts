@@ -76,6 +76,16 @@ export class Indexer {
     const plainText = this.stripMarkdown(content);
     const chunks = this.chunkText(plainText);
 
+    // Symptom-keyed indexing (v1.4 Phase 5). Each verbatim `symptoms:` phrase is
+    // added as its own chunk, so a terse symptom query ("it hangs after reindex")
+    // matches the note directly — the fix for asymmetric retrieval (query-shaped
+    // keys stored alongside document-shaped content). Synthetic child chunks point
+    // at the same note path; no index-format change.
+    const symptoms = Array.isArray(frontmatter.symptoms)
+      ? (frontmatter.symptoms as unknown[]).filter((s): s is string => typeof s === "string" && s.trim().length > 0).map((s) => s.trim())
+      : [];
+    const allChunks = symptoms.length > 0 ? [...chunks, ...symptoms] : chunks;
+
     const title =
       (frontmatter.title as string) ||
       headers[0] ||
@@ -111,7 +121,7 @@ export class Indexer {
       wikilinks,
       tags,
       headers,
-      chunks,
+      chunks: allChunks,
       mtime,
       ...(loadPriority !== undefined && { loadPriority }),
       ...(status !== undefined && { status }),

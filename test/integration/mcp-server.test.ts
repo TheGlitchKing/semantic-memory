@@ -34,7 +34,7 @@ describe("MCP Server", () => {
 
   it("should list all expected tools", async () => {
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(41);
+    expect(tools.length).toBe(42);
     const names = tools.map((t) => t.name);
     expect(names).toContain("verify_note");
     expect(names).toContain("search_semantic");
@@ -427,6 +427,78 @@ describe("MCP Server", () => {
       expect(hit.decay.reason).toContain("gotcha");
 
       await client.callTool({ name: "delete_note", arguments: { path: "decay-old.md", confirm: true } });
+    });
+  });
+
+  describe("Section-targeted read (v1.4)", () => {
+    it("read_note with `section` returns only that heading's section", async () => {
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "sectioned.md",
+          content: "# Doc\n\n## Purpose\n\nwhat it is\n\n## Knobs\n\n- turn the dial\n\n## Log\n\nhistory\n",
+          frontmatter: { title: "Sectioned", status: "active", type: "note" },
+        },
+      });
+      const res = await client.callTool({ name: "read_note", arguments: { path: "sectioned.md", section: "Knobs" } });
+      const text = (res.content as any)[0].text;
+      expect(text).toContain("## Knobs");
+      expect(text).toContain("turn the dial");
+      expect(text).not.toContain("Purpose");
+      expect(text).not.toContain("history");
+
+      const miss = await client.callTool({ name: "read_note", arguments: { path: "sectioned.md", section: "Nope" } });
+      expect((miss.content as any)[0].text).toContain("not found");
+
+      await client.callTool({ name: "delete_note", arguments: { path: "sectioned.md", confirm: true } });
+    });
+  });
+
+  describe("Symptom-keyed indexing (v1.4)", () => {
+    it("surfaces a note via a terse symptom query that its prose doesn't contain", async () => {
+      // Body deliberately avoids the symptom words — only the symptoms: frontmatter has them.
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "gotchas/reindex-hang.md",
+          content: "# Vector index rebuild stall\n\nThe hnswlib rebuild can stall on a concurrent write.",
+          frontmatter: { title: "Reindex stall", status: "active", type: "gotcha", symptoms: ["it hangs after the second reindex"] },
+        },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      const res = await client.callTool({ name: "search_semantic", arguments: { query: "it hangs after the second reindex", limit: 5 } });
+      const parsed = JSON.parse((res.content as any)[0].text);
+      expect(parsed.some((r: any) => r.path === "gotchas/reindex-hang.md")).toBe(true);
+
+      await client.callTool({ name: "delete_note", arguments: { path: "gotchas/reindex-hang.md", confirm: true } });
+    });
+  });
+
+  describe("Path-class ranking (v1.4)", () => {
+    it("ranks an archived copy below its live twin for the same query", async () => {
+      const body = "# Quokka nebula protocol\n\nThe quokka nebula protocol handshake and quokka nebula retry logic.";
+      await client.callTool({
+        name: "create_note",
+        arguments: { path: "live/quokka.md", content: body, frontmatter: { title: "Quokka live", status: "active", type: "note" } },
+      });
+      await client.callTool({
+        name: "create_note",
+        arguments: { path: "archive/quokka.md", content: body, frontmatter: { title: "Quokka archived", status: "archived", type: "note" } },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      const res = await client.callTool({ name: "search_semantic", arguments: { query: "quokka nebula protocol handshake", limit: 10 } });
+      const parsed = JSON.parse((res.content as any)[0].text);
+      const liveIdx = parsed.findIndex((r: any) => r.path === "live/quokka.md");
+      const archiveIdx = parsed.findIndex((r: any) => r.path === "archive/quokka.md");
+      expect(liveIdx).toBeGreaterThanOrEqual(0);
+      expect(archiveIdx).toBeGreaterThanOrEqual(0);
+      // Near-identical content, but the archived copy is down-weighted (0.3×) → ranks lower.
+      expect(liveIdx).toBeLessThan(archiveIdx);
+
+      await client.callTool({ name: "delete_note", arguments: { path: "live/quokka.md", confirm: true } });
+      await client.callTool({ name: "delete_note", arguments: { path: "archive/quokka.md", confirm: true } });
     });
   });
 

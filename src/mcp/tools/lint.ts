@@ -3,16 +3,17 @@ import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { lintVault } from "../../core/lint.js";
 
-type LintCheck = "schema" | "provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates";
+type LintCheck = "schema" | "provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates" | "alias_conflicts";
 const ALL_CHECKS: LintCheck[] = ["schema", "provenance", "stale", "broken_links"];
 
-const RULE_KEY_FOR_CHECK: Record<LintCheck, "schema_violations" | "missing_provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates"> = {
+const RULE_KEY_FOR_CHECK: Record<LintCheck, "schema_violations" | "missing_provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates" | "alias_conflicts"> = {
   schema: "schema_violations",
   provenance: "missing_provenance",
   stale: "stale",
   broken_links: "broken_links",
   code_symbols: "code_symbols",
   decay_candidates: "decay_candidates",
+  alias_conflicts: "alias_conflicts",
 };
 
 export function registerLintTools(server: McpServer, ctx: ServerContext): void {
@@ -62,15 +63,16 @@ export function registerLintTools(server: McpServer, ctx: ServerContext): void {
     {
       pathGlob: z.string().optional(),
       checks: z
-        .array(z.enum(["schema", "provenance", "stale", "broken_links", "code_symbols", "decay_candidates"]))
+        .array(z.enum(["schema", "provenance", "stale", "broken_links", "code_symbols", "decay_candidates", "alias_conflicts"]))
         .optional()
-        .describe("Filter to specific lint rules. Omit for full report (excludes the opt-in code_symbols / decay_candidates)."),
+        .describe("Filter to specific lint rules. Omit for full report (excludes the opt-in code_symbols / decay_candidates / alias_conflicts)."),
     },
     async ({ pathGlob, checks }) => {
       const report = await lintVault(ctx.notesPath, {
         pathGlob,
         checkCodeSymbols: !!checks?.includes("code_symbols"),
         checkDecayCandidates: !!checks?.includes("decay_candidates"),
+        checkAliasConflicts: !!checks?.includes("alias_conflicts"),
       });
       if (!checks || checks.length === 0) {
         return ctx.textResponse(JSON.stringify(report, null, 2));

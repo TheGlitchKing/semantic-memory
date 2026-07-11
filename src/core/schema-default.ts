@@ -47,6 +47,10 @@ types:
     description: External reference (paper, blog post, doc) used as provenance
     required: [title, status, source]
 
+  alias:
+    description: Learned human→artifact vocabulary entry (v1.4 lexicon). Maps the human's phrasing to a concrete path/symbol.
+    required: [canonical]
+
 # Severity values for gotcha type.
 severity_enum: [low, medium, high, critical]
 
@@ -80,6 +84,22 @@ decay:
   hotness_boost:
     enabled: false              # extend half-life for heavily-backlinked notes (opt-in)
     cap: 2.0
+
+# Path-class ranking (v1.4). Down-weights whole regions of the vault by path glob
+# (composes multiplicatively with decay + load_priority). First matching rule wins.
+# The default down-weights archived notes so retired docs stop dominating results.
+path_class:
+  enabled: true
+  rules:
+    - glob: "archive/**"
+      multiplier: 0.3
+
+# Token-frugal tool surface (v1.4). When enabled, the server registers a reduced
+# tool set in modes that don't need the full surface (outage-silence → search/read
+# only). DEFAULT OFF — mid-session mode switches don't re-register, so opt in and
+# dogfood before relying on it.
+tools:
+  conditional: false
 
 # Selection-logging telemetry (v1.3.1). Records what search returned and which
 # note the answer used, to a LOCAL append-only JSONL at

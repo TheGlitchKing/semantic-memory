@@ -14,6 +14,8 @@ export interface SynthesizeNoteInput {
   decision_maker?: string;
   decided_on?: string;
   severity?: string;
+  /** Verbatim symptom phrases (the user's own words) — symptom-keyed for retrieval. */
+  symptoms?: string[];
   extra_frontmatter?: Record<string, unknown>;
   /**
    * When true, the resulting note is filed under `proposals/<date>-<slug>.md` with
@@ -73,6 +75,7 @@ export function buildSynthesizeChangeSet(input: SynthesizeNoteInput): Synthesize
     ...(input.decision_maker && { decision_maker: input.decision_maker }),
     ...(input.decided_on && { decided_on: input.decided_on }),
     ...(input.severity && { severity: input.severity }),
+    ...(input.symptoms && input.symptoms.length > 0 && { symptoms: input.symptoms }),
     ...(isProposal && { proposed_target: canonicalPath }),
     ...(input.extra_frontmatter ?? {}),
   };

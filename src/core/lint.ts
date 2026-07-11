@@ -7,6 +7,7 @@ import { loadSchema, validateNote, type LintFinding, type VaultSchema } from "./
 import { deriveProjectRoot } from "./session.js";
 import { computeDecay, loadDecayConfig, normalizeVerifiedDate } from "./decay.js";
 import { readSelectionLog } from "./telemetry.js";
+import { compileLexicon, findAliasConflicts } from "./lexicon.js";
 
 export interface LintReport {
   schemaPath: string;
@@ -18,6 +19,7 @@ export interface LintReport {
     broken_links: LintFinding[];
     code_symbols: LintFinding[];
     decay_candidates: LintFinding[];
+    alias_conflicts: LintFinding[];
   };
   counts: {
     errors: number;
@@ -49,6 +51,12 @@ export async function lintVault(
      * a silent no-op when no selection log exists.
      */
     checkDecayCandidates?: boolean;
+    /**
+     * When true, run the alias-conflict check: flag lexicon phrases that map to
+     * more than one canonical target (a wrong binding misroutes queries). Opt-in;
+     * no-op when the vault has no lexicon.
+     */
+    checkAliasConflicts?: boolean;
   } = {}
 ): Promise<LintReport> {
   const schema = opts.schemaOverride ?? (await loadSchema(notesPath));
@@ -87,6 +95,17 @@ export async function lintVault(
     findings.push(...(await findDecayCandidates(notesPath, rawByPath, opts.todayIso)));
   }
 
+  if (opts.checkAliasConflicts) {
+    for (const c of findAliasConflicts(await compileLexicon(notesPath))) {
+      findings.push({
+        path: "lexicon",
+        rule: "alias_conflicts",
+        severity: "warn",
+        message: `phrase "${c.phrase}" maps to ${c.canonicals.length} targets: ${c.canonicals.join(", ")} — pick one`,
+      });
+    }
+  }
+
   const byRule = {
     schema_violations: findings.filter((f) => f.rule === "schema_violations"),
     missing_provenance: findings.filter((f) => f.rule === "missing_provenance"),
@@ -94,6 +113,7 @@ export async function lintVault(
     broken_links: findings.filter((f) => f.rule === "broken_links"),
     code_symbols: findings.filter((f) => f.rule === "code_symbols"),
     decay_candidates: findings.filter((f) => f.rule === "decay_candidates"),
+    alias_conflicts: findings.filter((f) => f.rule === "alias_conflicts"),
   };
   const errors = findings.filter((f) => f.severity === "error").length;
   const warnings = findings.filter((f) => f.severity === "warn").length;

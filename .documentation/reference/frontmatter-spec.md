@@ -6,8 +6,8 @@ audience: [developers, admin]
 tags: [frontmatter, schema, yaml, fields, spec, provenance]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.0'
-purpose: Authoritative field-by-field spec for note frontmatter. Covers every field the indexer / lint / search tools read, what types they expect, what defaults apply, and which tools surface them.
+version: '1.4.0'
+purpose: Authoritative field-by-field spec for note frontmatter. Covers every field the indexer / lint / search tools read, what types they expect, what defaults apply, and which tools surface them. Includes the v1.4.0 symptoms field and the new alias note type (canonical, phrases, evidence_count, source).
 load_priority: 9
 ---
 
@@ -50,6 +50,12 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Used by:** Documentation organization (HEWTD-flavored docs use this); not currently used by search filters
 - **Schema rule:** None
 - **Example:** `audience: [developers, admin]`
+
+### `canonical` (v1.4+, `type: alias` only)
+- **Type:** `string`
+- **Required:** Yes, for `type: alias` — the path or symbol that the note's alias phrases resolve to.
+- **Used by:** `manage_lexicon({action: "add"|"remove"|"lookup"})` and the `semantic-memory lexicon compile` CLI command key `.claude/.semantic-memory/lexicon-cache.json` on this field. See [mcp-tools-reference.md](./mcp-tools-reference.md), [cli-reference.md](./cli-reference.md).
+- **Example:** `canonical: src/core/schema-default.ts`
 
 ### `confidence`
 - **Type:** `string` — typically one of `low`, `medium`, `high`
@@ -101,6 +107,12 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Used by:** The v1.3 confidence-decay engine. When `true` AND `last_verified` is within 365 days, the decay multiplier is pinned at 1.0. When `last_verified` is > 365 days old, the evergreen claim is treated as expired and normal decay applies (so evergreen status must be re-affirmed via `verify_note`).
 - **Status:** Shipped in v1.3.0. Ignored by v1.2 and earlier (forward-compatible). See [decay-guide](../operational/decay-guide.md).
 
+### `evidence_count` (v1.4+, `type: alias` only)
+- **Type:** `number`
+- **Required:** No (auto-managed)
+- **Used by:** `manage_lexicon({action: "add"})` — bumped each time an existing canonical/phrase pair is re-added instead of being duplicated. Informational signal for how often a phrase mapping has been reinforced.
+- **Example:** `evidence_count: 3`
+
 ### `extra_frontmatter`
 - **Type:** `Record<string, unknown>` — passed through `synthesize_note` calls into the resulting note's frontmatter
 - **Required:** No
@@ -142,6 +154,17 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Convention:** Reserve 9-10 for top-tier reference docs (compat matrix, root indices). Reserve 1-3 for verbose tutorials / examples that shouldn't dominate search.
 - **Example:** `load_priority: 8`
 
+### `phrases` (v1.4+, `type: alias` only)
+- **Type:** `string[]`
+- **Required:** No (recommended for `type: alias` — the whole point of the note)
+- **Used by:** `manage_lexicon({action: "lookup"})` matches a query against these phrases to expand it to the note's `canonical` target.
+- **Example:**
+  ```yaml
+  phrases:
+    - "the vault"
+    - "the notes folder"
+  ```
+
 ### `purpose`
 - **Type:** `string` — one-paragraph "why this exists / what it covers"
 - **Required:** No (recommended for HEWTD-flavored docs)
@@ -173,6 +196,13 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Required:** Recommended for `type: gotcha`
 - **Used by:** Set by `synthesize_note` when provided; surfaced in `list_notes` output; can be schema-constrained
 - **Example:** `severity: high`
+
+### `source` (v1.4+, `type: alias` only — not the `source_*` family below)
+- **Type:** `string` — `learned` or `authored`
+- **Required:** No (defaults to `learned` unless set explicitly, or `--authored` is passed to `lexicon add`)
+- **Used by:** `manage_lexicon` / `semantic-memory lexicon add --authored`. Distinguishes lexicon entries the system inferred (`learned`) from ones a human explicitly authored (`authored`).
+- **Note:** Distinct from `source_uri`, `source_summary`, `source_tags`, `source_title`, `source_type` below, which apply to `type: source` notes, not `type: alias` notes.
+- **Example:** `source: authored`
 
 ### `source_summary` (only inside `sources/<slug>.md` notes)
 - **Type:** `string`
@@ -216,6 +246,18 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Schema rule:** Schema can constrain to an enum
 - **Example:** `status: active`
 
+### `symptoms` (v1.4+)
+- **Type:** `string[]`
+- **Required:** No
+- **Used by:** Verbatim symptom phrases, settable on any note type but especially useful for `gotcha`. Each phrase is symptom-keyed at index time — indexed as its own chunk — so a terse symptom-shaped query (e.g. "connection refused on port 5432") matches the note even when its prose never uses those exact words.
+- **Set by:** `synthesize_note({ symptoms: [...] })` — see [mcp-tools-reference.md](./mcp-tools-reference.md).
+- **Example:**
+  ```yaml
+  symptoms:
+    - "connection refused on port 5432"
+    - "ECONNREFUSED during migration"
+  ```
+
 ### `tags`
 - **Type:** `string[]`
 - **Required:** No
@@ -247,13 +289,14 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Convention:** Match the body's `# H1` line.
 
 ### `type`
-- **Type:** `string` — typically `note`, `decision`, `gotcha`, `source` (default schema)
+- **Type:** `string` — typically `note`, `decision`, `gotcha`, `source`, `alias` (v1.4+; default schema)
 - **Required:** Yes (in default schema)
 - **Used by:**
   - Schema: each type can have type-specific required fields and rules
-  - Lint: `missing_provenance` only fires for `note`/`decision`/`gotcha`, NOT `source`
-  - **v1.3 confidence-decay** will use type to look up per-type half-life (decision: 365d, gotcha: 90d, etc.)
+  - Lint: `missing_provenance` only fires for `note`/`decision`/`gotcha`, NOT `source`/`alias`
+  - **v1.3 confidence-decay** uses type to look up per-type half-life (decision: 365d, gotcha: 180d, etc.)
   - `synthesize_note` accepts this as input
+  - `type: alias` notes are managed by `manage_lexicon` rather than `synthesize_note` — see [The `alias` note type](#the-alias-note-type-v14) below
 - **Schema rule:** `types` map in `vault.schema.yml` declares valid types and their per-type rules
 - **Example:** `type: decision`
 
@@ -261,6 +304,33 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Type:** `string`
 - **Required:** No
 - **Used by:** HEWTD docs use this; informational
+
+## The `alias` note type (v1.4+)
+
+`alias` notes back the learned human→artifact lexicon — the mapping from human phrases to canonical vault/code targets used by `manage_lexicon` and the `semantic-memory lexicon` CLI subcommands. They live under `<vault>/lexicon/`.
+
+- **`type`:** `alias`
+- **Required field:** `canonical` — the path/symbol the note's phrases resolve to.
+- **Optional fields:** `phrases` (string[]), `confidence`, `evidence_count`, `source` (`learned` | `authored`).
+- **Written by:** `manage_lexicon({action: "add"})` (see [mcp-tools-reference.md](./mcp-tools-reference.md)) and `semantic-memory lexicon add` (see [cli-reference.md](./cli-reference.md)).
+- **Compiled to:** `.claude/.semantic-memory/lexicon-cache.json` via `manage_lexicon({action: "compile"})` / `semantic-memory lexicon compile` (see [configuration-reference.md](./configuration-reference.md) for the state-file entry).
+- **Lint:** the opt-in `alias_conflicts` check on `lint_vault` flags a phrase that maps to more than one `canonical` target across `alias` notes.
+
+Example:
+
+```yaml
+---
+title: "alias: the vault"
+type: alias
+canonical: src/core/schema-default.ts
+phrases:
+  - "the vault"
+  - "the notes folder"
+confidence: high
+evidence_count: 3
+source: learned
+---
+```
 
 ## Schema enforcement
 

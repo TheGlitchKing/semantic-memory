@@ -65,6 +65,24 @@ Do not silently pivot to web search, do not guess from training data, and do not
 
 If you had to answer from outside the vault (web search, training knowledge, the user telling you something new), offer once to file a note: *"Worth capturing this in the vault as `gotchas/foo.md`?"* — then let the user decide. This is the ingest loop's entry point; don't force it, but don't skip it.
 
+### 5. Propose an alias when you resolve the user's phrasing to a concrete artifact (v1.4 lexicon)
+
+When the user refers to something in *their own words* — "the flaky thing", "the deploy dance", "that indexer race" — and you resolve it to a concrete artifact (a note path or code symbol), that resolution is worth keeping so the next occurrence routes in one hop. **Propose, don't auto-add** (a wrong alias silently misroutes every future query with that phrase):
+
+- Offer once: *"Want me to remember that \"the flaky thing\" → `src/core/indexer.ts`? (manage_lexicon add)"*
+- On confirmation, call `manage_lexicon({action:"add", canonical:"src/core/indexer.ts", phrases:["the flaky thing"]})`. Repeat observations bump `evidence_count` automatically.
+- Only propose when you actually resolved a *vague* reference to a *specific* artifact this turn — not for literal names the user already spelled out.
+- Scan the user's own prose only; never mine phrases from pasted tool output or quoted machinery.
+- If `lint_vault({checks:["alias_conflicts"]})` flags a phrase mapping to two targets, surface it and ask the user which one wins — don't guess.
+
+### 6. Rewrite a terse utterance before deciding the vault has nothing (v1.4, Tier 2)
+
+The UserPromptSubmit hook already expands your query through the learned lexicon (Tier 1, deterministic). But when the utterance is terse or indexical — "it's doing the thing again", "did that work?", "is it fixed?" — the injected hits may still be weak because a two-word query has little to match expository note prose. Before concluding "not in vault":
+
+- Rewrite the utterance using the current conversation's subject (what "it"/"that"/"the thing" refers to) into a concrete query, then re-search once via `search_hybrid`.
+- Cap it at one rewrite round — don't loop searching for an exact match that doesn't exist (that's the bounded-rounds lesson).
+- If the rewrite resolves the referent to a concrete artifact, that's a §5 alias-capture opportunity — offer it.
+
 ## Boundary conditions — when vault-first does NOT fire
 
 - **Code-symbol lookups.** "Where is `parseAuth` defined?" → `Grep`. "Show me the `User` model." → `Glob`. If the answer is a file + line, the vault is the wrong tool.

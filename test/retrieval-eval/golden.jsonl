@@ -1,0 +1,17 @@
+// Golden retrieval set (v1.4 Phase 1) — (utterance → expected note paths) against test/fixtures/vault.
+// `class` groups cases so we can track per-class deltas (the arc targets `terse` + `archive` especially).
+// Grow this file as real transcript pairs are mined; the harness scales to 50-100+ cases.
+{"utterance": "how do our services communicate with each other", "expected": ["event-driven.md", "microservices.md"], "class": "conceptual"}
+{"utterance": "what is the single entry point for client requests", "expected": ["api-gateway.md"], "class": "conceptual"}
+{"utterance": "how does user authentication work", "expected": ["user-service.md"], "class": "conceptual"}
+{"utterance": "where do we handle registration and profiles", "expected": ["user-service.md"], "class": "conceptual"}
+{"utterance": "how do we deploy the system", "expected": ["deployment-guide.md"], "class": "conceptual"}
+{"utterance": "what do I need installed to deploy", "expected": ["deployment-guide.md"], "class": "conceptual"}
+{"utterance": "give me the overall architecture", "expected": ["project-overview.md", "microservices.md"], "class": "conceptual"}
+{"utterance": "one service reacting to something happening in another", "expected": ["event-driven.md"], "class": "conceptual"}
+{"utterance": "the gateway", "expected": ["api-gateway.md"], "class": "terse"}
+{"utterance": "auth", "expected": ["user-service.md"], "class": "terse"}
+{"utterance": "events", "expected": ["event-driven.md"], "class": "terse"}
+{"utterance": "deploy", "expected": ["deployment-guide.md"], "class": "terse"}
+{"utterance": "microservices", "expected": ["microservices.md"], "class": "keyword"}
+{"utterance": "docker", "expected": ["deployment-guide.md"], "class": "keyword"}

@@ -22,6 +22,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "list_notes",
   "log_event",
   "log_query",
+  "manage_lexicon",
   "manage_tags",
   "move_note",
   "read_multiple_notes",
@@ -490,7 +491,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "additionalProperties": false,
       "properties": {
         "checks": {
-          "description": "Filter to specific lint rules. Omit for full report (excludes the opt-in code_symbols / decay_candidates).",
+          "description": "Filter to specific lint rules. Omit for full report (excludes the opt-in code_symbols / decay_candidates / alias_conflicts).",
           "items": {
             "enum": [
               "schema",
@@ -499,6 +500,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
               "broken_links",
               "code_symbols",
               "decay_candidates",
+              "alias_conflicts",
             ],
             "type": "string",
           },
@@ -597,6 +599,53 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "log_query",
   },
   {
+    "description": "Manage the learned human→artifact lexicon (v1.4). \`action\`: add (upsert a canonical target + the human phrases that refer to it; bumps evidence_count on repeats), lookup (expand a query via matching alias phrases), list (all aliases), remove (by canonical), compile (rebuild the derived cache). The lexicon maps how THIS human names things to concrete paths/symbols.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "add",
+            "lookup",
+            "list",
+            "remove",
+            "compile",
+          ],
+          "type": "string",
+        },
+        "canonical": {
+          "description": "For add/remove: the concrete target (note path or code symbol).",
+          "type": "string",
+        },
+        "phrases": {
+          "description": "For add: the human's verbatim phrases for the canonical target.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "query": {
+          "description": "For lookup: the utterance to expand via alias phrases.",
+          "type": "string",
+        },
+        "source": {
+          "description": "For add: provenance of the binding (default learned).",
+          "enum": [
+            "learned",
+            "authored",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "action",
+      ],
+      "type": "object",
+    },
+    "name": "manage_lexicon",
+  },
+  {
     "description": "Add, remove, list, or rename tags on a note (frontmatter and inline). Use action='rename' with \`from\` and \`to\` to rename a tag vault-wide; \`path\` is ignored in that mode.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -679,12 +728,16 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
     "name": "read_multiple_notes",
   },
   {
-    "description": "Read the full content of a specific note by path",
+    "description": "Read a note by path. Pass \`section\` (a heading name) to read only that heading's section instead of the whole file — cheaper when you only need one part (e.g. a dossier's 'Knobs' section).",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
         "path": {
+          "type": "string",
+        },
+        "section": {
+          "description": "Heading name — return only that section (heading through the next same-or-higher heading).",
           "type": "string",
         },
       },
@@ -1077,6 +1130,13 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
         "suggested_path": {
           "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'. In proposal mode, this is recorded as proposed_target frontmatter and the actual write goes to proposals/.",
           "type": "string",
+        },
+        "symptoms": {
+          "description": "Verbatim symptom phrases in the user's own words (e.g. 'it hangs after the second reindex'). Stored as \`symptoms:\` frontmatter and symptom-keyed at index time so terse symptom queries match this note — the retrieval key for next time.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
         },
         "topic": {
           "type": "string",

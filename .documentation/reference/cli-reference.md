@@ -6,8 +6,8 @@ audience: [developers]
 tags: [cli, commands, flags, reference]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.1'
-purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace), and v1.3.1 selection-stats telemetry introspection.
+version: '1.4.0'
+purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace), v1.3.1 selection-stats telemetry introspection, and the v1.4.0 lexicon subcommand group.
 load_priority: 9
 ---
 
@@ -33,6 +33,7 @@ Binary: `node node_modules/@theglitchking/semantic-memory/bin/semantic-memory` (
 | `decay-config` (v1.3+) | Info | Print the active confidence-decay config as JSON |
 | `decay-trace` (v1.3+) | Info | Print the decay calculation for one note as JSON |
 | `selection-stats` (v1.3.1+) | Info | Print selection-log telemetry stats (searches, selections, most/never-cited notes) |
+| `lexicon <action>` (v1.4+) | Maintenance | Manage the learned human→artifact lexicon (list/compile/add) |
 | `update` / `policy` | Plugin runtime | Inherited from `@theglitchking/claude-plugin-runtime` |
 
 All subcommands accept `--help`.
@@ -50,7 +51,7 @@ semantic-memory --notes <path> [--reindex] [--stats] [--wait-for-ready] [--read-
 - `--reindex` — force full reindex and exit.
 - `--stats` — print note/chunk/wikilink/tag counts and exit.
 - `--wait-for-ready` — block until index fully built (default: lazy; search tools return "Indexing in progress" until ready).
-- `--read-only` — suppress write tools. Read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2) — unchanged in v1.3 since `verify_note` is write-gated. Write-mode exposes 41 (v1.3+; was 40 in v1.2).
+- `--read-only` — suppress write tools. Read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2) — unchanged in v1.3/v1.4 since `verify_note` and `manage_lexicon` are write-gated. Write-mode exposes 42 (v1.4+; was 41 in v1.3, 40 in v1.2).
 - `--model <name>` — override the embedding model (default: `all-MiniLM-L6-v2`). Switching models invalidates the existing index — startup detects mismatch and forces a reindex.
 - `--workers <n>` — number of worker threads for parallel embedding.
 - `--batch-size <n>` — batch size for embedding requests.
@@ -108,7 +109,7 @@ semantic-memory tools          # list all MCP tools by category
 semantic-memory tools <name>   # show args + examples for one tool
 ```
 
-`tools` lists 41 tools at v1.3.0 (40 at v1.2.0, was 33 at v0.2.x).
+`tools` lists 42 tools at v1.4.0 (41 at v1.3.0, 40 at v1.2.0, was 33 at v0.2.x).
 
 ---
 
@@ -314,6 +315,42 @@ No-op (empty stats, exit 0) when `selection.jsonl` doesn't exist yet — e.g. fr
 
 ---
 
+## `lexicon` (v1.4+) — manage the learned human→artifact lexicon
+
+Subcommand group for the alias lexicon that backs the `manage_lexicon` MCP tool (see [mcp-tools-reference.md](./mcp-tools-reference.md)) — human phrases mapped to canonical vault/code targets.
+
+### `lexicon list`
+
+```bash
+semantic-memory lexicon list --notes <path>
+```
+
+Lists all lexicon entries: canonical target, phrases, source (`learned`/`authored`), evidence_count.
+
+### `lexicon compile`
+
+```bash
+semantic-memory lexicon compile --notes <path>
+```
+
+Rebuilds `<path>/.claude/.semantic-memory/lexicon-cache.json` from the vault's `alias`-type notes under `<vault>/lexicon/` (see [frontmatter-spec.md](./frontmatter-spec.md)). Run after hand-editing `alias` notes directly, or after a batch of `lexicon add` calls.
+
+### `lexicon add`
+
+```bash
+semantic-memory lexicon add <canonical> <phrases...> --notes <path> [--authored]
+```
+
+- `<canonical>` — the canonical target the phrases should resolve to (a path or symbol).
+- `<phrases...>` — one or more human phrases to associate with `<canonical>`.
+- `--authored` — mark the entry `source: authored` instead of the default `source: learned`. Re-running `add` for a canonical/phrase pair that already exists bumps `evidence_count` rather than creating a duplicate.
+
+**Output:** JSON of the upserted lexicon entry.
+
+**See:** [configuration-reference.md](./configuration-reference.md) for the `lexicon-cache.json` runtime-state file, [mcp-tools-reference.md](./mcp-tools-reference.md) for the equivalent `manage_lexicon` MCP tool.
+
+---
+
 ## Plugin runtime commands
 
 `update`, `policy`, and related commands come from `@theglitchking/claude-plugin-runtime`. See that package's README for the auto-update policy contract.
@@ -349,6 +386,6 @@ The env var names retain `SIDEKICK_*` prefix for backwards compat. Don't break u
 ## See also
 
 - [hooks-reference.md](./hooks-reference.md) — what shells out to which CLI subcommand
-- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (41 tools)
+- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (42 tools)
 - [drift-detection.md](../operational/drift-detection.md) — `healthcheck` deep dive
 - [state-migration.md](../operational/state-migration.md) — `migrate-state` deep dive

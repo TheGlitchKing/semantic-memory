@@ -6,7 +6,7 @@ audience: [developers]
 tags: [registry, operational]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.0'
+version: '1.4.0'
 purpose: Quick reference for operational documentation
 load_priority: 5
 ---
@@ -19,7 +19,7 @@ load_priority: 5
 
 | Metric | Value |
 |--------|-------|
-| Documents | 8 |
+| Documents | 9 |
 | Domain | operational |
 
 ## Documents
@@ -34,6 +34,7 @@ load_priority: 5
 | [`drift-detection.md`](./drift-detection.md) | guide | 1.3.0 | v1.1+ SessionStart auto-check + manual /healthcheck. Per-finding remediation. v1.2.3 `--fix` auto-remediation. |
 | [`state-migration.md`](./state-migration.md) | guide | 1.2.0 | v1.2+ migrate-state CLI for moving legacy .sidekick-* files under .semantic-memory/. |
 | [`decay-guide.md`](./decay-guide.md) | guide | 1.3.0 | v1.3+ operating confidence decay: decay block, verify_note, evergreen, decay-config/decay-trace, tuning, disabling. |
+| [`lexicon-guide.md`](./lexicon-guide.md) | guide | 1.4.0 | v1.4+ human→LLM bridge: lexicon/manage_lexicon, alias capture, alias_conflicts, symptom capture, query expansion. |
 
 ## Keywords
 
