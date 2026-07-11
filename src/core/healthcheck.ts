@@ -114,6 +114,7 @@ async function runFastTier(opts: HealthcheckOptions): Promise<DriftFinding[]> {
     checkPluginVersion(opts.projectRoot),
     checkMcpJsonEntry(opts.projectRoot),
     checkHookRegistration(opts.projectRoot),
+    checkHookDoubleRegistration(opts.projectRoot),
     checkIndexFreshness(opts.projectRoot, opts.vaultPath),
     checkSessionStaleness(opts.projectRoot),
     checkAgentsContract(opts.projectRoot),
@@ -233,6 +234,50 @@ async function checkHookRegistration(projectRoot: string): Promise<DriftFinding 
       };
     }
     return { check: "hook_registration", severity: "ok", summary: "all 3 hook events registered" };
+  } catch (err: any) {
+    return failOpenWarn(err);
+  }
+}
+
+/**
+ * Detect the double-registration that fires every hook twice: the SAME event
+ * declared in BOTH the project's .claude/settings.json AND the plugin's own
+ * hooks/hooks.json. On a plugin install the plugin already registers its hooks,
+ * so a duplicate in settings.json makes vault-context.js (and friends) run twice —
+ * e.g. the <vault-context> block injected twice per prompt.
+ *
+ * Only fires in a plugin context (CLAUDE_PLUGIN_ROOT present). npm-dependency
+ * installs legitimately register via settings.json and have no plugin hooks.json,
+ * so `pluginRegisteredHookEvents()` is empty and this is a silent no-op for them.
+ */
+async function checkHookDoubleRegistration(projectRoot: string): Promise<DriftFinding | null> {
+  const settings = join(projectRoot, ".claude", "settings.json");
+  if (!existsSync(settings)) return null;
+  const pluginEvents = pluginRegisteredHookEvents();
+  if (pluginEvents.length === 0) return null; // not a plugin install / no plugin hooks to collide with
+  try {
+    const data = JSON.parse(await readFile(settings, "utf-8"));
+    const hooks = data?.hooks ?? {};
+    const doubled: string[] = [];
+    for (const event of ["SessionStart", "UserPromptSubmit", "Stop"]) {
+      const arr = hooks[event];
+      const inSettings = Array.isArray(arr) && arr.length > 0;
+      if (inSettings && pluginEvents.includes(event)) doubled.push(event);
+    }
+    if (doubled.length > 0) {
+      return {
+        check: "hook_double_registration",
+        severity: "warn",
+        summary: `hook event(s) registered in BOTH settings.json and the plugin — fires twice: ${doubled.join(", ")}`,
+        detail:
+          `The plugin's hooks/hooks.json already registers ${doubled.join(", ")}, so the duplicate ` +
+          `registration in .claude/settings.json makes each hook run twice (e.g. the <vault-context> ` +
+          `block injected twice per prompt). Remove the "hooks" block from .claude/settings.json — the ` +
+          `plugin's hooks.json is the single source of truth for plugin installs.`,
+        fixable_via: "none",
+      };
+    }
+    return { check: "hook_double_registration", severity: "ok", summary: "no double-registered hooks" };
   } catch (err: any) {
     return failOpenWarn(err);
   }
