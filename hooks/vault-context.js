@@ -181,6 +181,41 @@ export function formatContextBlock(source, query, hits) {
   return lines.join("\n");
 }
 
+// --- Tier-1 lexicon query expansion (v1.4 Phase 6, deterministic) ---
+// Before embedding a user utterance, substitute/augment it with the canonical
+// targets of any learned alias phrases it contains, so "is the flaky thing fixed?"
+// searches as "...the flaky thing... src/core/indexer.ts". Pure string/table
+// lookup — no LLM, no spawn, reads the derived lexicon-cache.json only.
+
+function normalizePhrase(s) {
+  return String(s || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function readLexiconAliases(projectRoot) {
+  try {
+    const cachePath = join(projectRoot, ".claude", ".semantic-memory", "lexicon-cache.json");
+    if (!existsSync(cachePath)) return [];
+    const data = JSON.parse(readFileSync(cachePath, "utf8"));
+    return Array.isArray(data?.aliases) ? data.aliases : [];
+  } catch {
+    return [];
+  }
+}
+
+export function expandQueryViaLexicon(projectRoot, query) {
+  const aliases = readLexiconAliases(projectRoot);
+  if (aliases.length === 0) return query;
+  const nq = normalizePhrase(query);
+  const canonicals = [];
+  for (const a of aliases) {
+    const phrases = Array.isArray(a.phrases) ? a.phrases : [];
+    if (phrases.some((p) => p && nq.includes(normalizePhrase(p)))) {
+      if (a.canonical && !canonicals.includes(a.canonical)) canonicals.push(a.canonical);
+    }
+  }
+  return canonicals.length ? `${query} ${canonicals.join(" ")}` : query;
+}
+
 function escapeAttr(s) {
   return String(s).replace(/["<>&]/g, (c) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 }
@@ -683,7 +718,10 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
     emit("UserPromptSubmit", "");
     return;
   }
-  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", prompt], 30_000);
+  // Tier-1 lexicon expansion: search with the alias-expanded query, but keep the
+  // original prompt for display in the block.
+  const searchQuery = expandQueryViaLexicon(projectRoot, prompt);
+  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "8", searchQuery], 30_000);
   state.recent = [fp, ...recent].slice(0, 10);
   saveFingerprints(projectRoot, state);
   const cue = detectCaptureCue(prompt);
