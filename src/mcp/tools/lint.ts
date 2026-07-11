@@ -3,15 +3,16 @@ import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { lintVault } from "../../core/lint.js";
 
-type LintCheck = "schema" | "provenance" | "stale" | "broken_links" | "code_symbols";
+type LintCheck = "schema" | "provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates";
 const ALL_CHECKS: LintCheck[] = ["schema", "provenance", "stale", "broken_links"];
 
-const RULE_KEY_FOR_CHECK: Record<LintCheck, "schema_violations" | "missing_provenance" | "stale" | "broken_links" | "code_symbols"> = {
+const RULE_KEY_FOR_CHECK: Record<LintCheck, "schema_violations" | "missing_provenance" | "stale" | "broken_links" | "code_symbols" | "decay_candidates"> = {
   schema: "schema_violations",
   provenance: "missing_provenance",
   stale: "stale",
   broken_links: "broken_links",
   code_symbols: "code_symbols",
+  decay_candidates: "decay_candidates",
 };
 
 export function registerLintTools(server: McpServer, ctx: ServerContext): void {
@@ -57,16 +58,20 @@ export function registerLintTools(server: McpServer, ctx: ServerContext): void {
 
   server.tool(
     "lint_vault",
-    "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass `checks` to filter to specific rules (schema, provenance, stale, broken_links, code_symbols) — when filtered, byRule contains only the requested rules. `code_symbols` is opt-in only (never in the default report): it flags inline-code file-path references in notes that no longer exist under the project root, and is a silent no-op outside a code repo.",
+    "Run lint rules across the vault. Default returns the full LintReport with all findings grouped by rule. Pass `checks` to filter to specific rules (schema, provenance, stale, broken_links, code_symbols, decay_candidates) — when filtered, byRule contains only the requested rules. Two checks are opt-in only (never in the default report): `code_symbols` flags inline-code file-path references that no longer exist under the project root (no-op outside a code repo); `decay_candidates` cross-references the selection log against current decay to surface frequently-retrieved-but-decayed notes (no-op with no selection log).",
     {
       pathGlob: z.string().optional(),
       checks: z
-        .array(z.enum(["schema", "provenance", "stale", "broken_links", "code_symbols"]))
+        .array(z.enum(["schema", "provenance", "stale", "broken_links", "code_symbols", "decay_candidates"]))
         .optional()
-        .describe("Filter to specific lint rules. Omit for full report (excludes code_symbols, which is opt-in)."),
+        .describe("Filter to specific lint rules. Omit for full report (excludes the opt-in code_symbols / decay_candidates)."),
     },
     async ({ pathGlob, checks }) => {
-      const report = await lintVault(ctx.notesPath, { pathGlob, checkCodeSymbols: !!checks?.includes("code_symbols") });
+      const report = await lintVault(ctx.notesPath, {
+        pathGlob,
+        checkCodeSymbols: !!checks?.includes("code_symbols"),
+        checkDecayCandidates: !!checks?.includes("decay_candidates"),
+      });
       if (!checks || checks.length === 0) {
         return ctx.textResponse(JSON.stringify(report, null, 2));
       }

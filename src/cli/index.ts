@@ -961,4 +961,32 @@ program
     process.exit(0);
   });
 
+// --- Selection-logging telemetry introspection (v1.3.1) ---
+
+program
+  .command("selection-stats")
+  .description("Summarize the local selection log: searches, selections, most-cited notes, and retrieved-but-never-cited notes.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--json", "Emit raw JSON instead of a human summary")
+  .action(async (opts) => {
+    const { computeSelectionStats, selectionLogPath } = await import("../core/telemetry.js");
+    const stats = await computeSelectionStats(resolve(opts.notes));
+    if (opts.json) {
+      console.log(JSON.stringify(stats, null, 2));
+      process.exit(0);
+    }
+    console.log(`Selection log: ${selectionLogPath(resolve(opts.notes))}`);
+    console.log(`  searches:   ${stats.searches}`);
+    console.log(`  selections: ${stats.selections}`);
+    const topCited = Object.entries(stats.citedPaths).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    if (topCited.length) {
+      console.log(`  most cited:`);
+      for (const [p, n] of topCited) console.log(`    ${n}×  ${p}`);
+    }
+    if (stats.retrievedNeverCited.length) {
+      console.log(`  retrieved but never cited (${stats.retrievedNeverCited.length}): ${stats.retrievedNeverCited.slice(0, 10).join(", ")}${stats.retrievedNeverCited.length > 10 ? " …" : ""}`);
+    }
+    process.exit(0);
+  });
+
 program.parse();

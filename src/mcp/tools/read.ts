@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
+import { appendEvent, wasRecentlySearched } from "../../core/telemetry.js";
 
 export function registerReadTools(server: McpServer, ctx: ServerContext): void {
   server.tool(
@@ -9,6 +10,16 @@ export function registerReadTools(server: McpServer, ctx: ServerContext): void {
     { path: z.string() },
     async ({ path }) => {
       const content = await ctx.crud.read(path);
+      // Selection telemetry (v1.3.1): reading a note is a "this got used" signal —
+      // the valuable, low-frequency half of the log. Awaited so it's durably
+      // recorded before we return; appendEvent never throws and respects the opt-out,
+      // so it can add tiny latency but can never fail the read.
+      await appendEvent(ctx.notesPath, {
+        kind: "selection",
+        note_path: path,
+        via: "read_note",
+        correlated: wasRecentlySearched(ctx.notesPath, path),
+      });
       return ctx.textResponse(content);
     }
   );

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../../src/mcp/server.js";
@@ -425,6 +427,35 @@ describe("MCP Server", () => {
       expect(hit.decay.reason).toContain("gotcha");
 
       await client.callTool({ name: "delete_note", arguments: { path: "decay-old.md", confirm: true } });
+    });
+  });
+
+  describe("Selection telemetry (v1.3.1)", () => {
+    it("logs a search event and a correlated selection event on search→read", async () => {
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "telemetry-probe.md",
+          content: "# Xylophone gyroscope telemetry probe\n\nUnique phrase xylophone gyroscope telemetry probe.",
+          frontmatter: { title: "Telemetry probe", status: "active", type: "note" },
+        },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      await client.callTool({ name: "search_semantic", arguments: { query: "xylophone gyroscope telemetry probe", limit: 5 } });
+      await client.callTool({ name: "read_note", arguments: { path: "telemetry-probe.md" } });
+
+      const logPath = join(tempDir, ".claude", ".semantic-memory", "selection.jsonl");
+      const raw = await readFile(logPath, "utf-8");
+      const events = raw.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+
+      expect(events.some((e) => e.kind === "search" && e.tool === "search_semantic")).toBe(true);
+      const sel = events.find((e) => e.kind === "selection" && e.note_path === "telemetry-probe.md");
+      expect(sel).toBeDefined();
+      expect(sel.via).toBe("read_note");
+      expect(sel.correlated).toBe(true); // it was in the preceding search's results
+
+      await client.callTool({ name: "delete_note", arguments: { path: "telemetry-probe.md", confirm: true } });
     });
   });
 });

@@ -6,8 +6,8 @@ audience: [developers]
 tags: [mcp, tools, api, reference, tools-catalog]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.0'
-purpose: All 41 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, and the v1.3 confidence-decay verify_note tool.
+version: '1.3.1'
+purpose: All 41 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, the v1.3 confidence-decay verify_note tool, and the v1.3.1 decay_candidates lint check.
 load_priority: 9
 ---
 
@@ -145,6 +145,13 @@ Run lint rules across the vault. Default returns the full report.
 **Args:** `{ pathGlob?, checks? }`
 **v1.1+ checks filter:** when `checks: ["schema"|"provenance"|"stale"|"broken_links"][]` is provided, only the requested rules are returned in `byRule` and `findings`. Subsumes the four `find_*` tools below.
 **Returns:** `{ findings, byRule, counts, schemaPath }`.
+
+**Opt-in checks — never included in the default (no-`checks`) report:**
+
+- **`code_symbols`** (v1.2.3+) — flags inline-code file-path references in note content that no longer exist under the project root. Catches doc drift after refactors/renames. No-op outside a code repo. See [v1-2-3-hygiene-completion.md](../changelog/v1-2-3-hygiene-completion.md).
+- **`decay_candidates`** (v1.3.1+) — cross-references the selection log (`.claude/.semantic-memory/selection.jsonl`) against each note's current decay multiplier, flagging notes retrieved frequently but decayed to ≤0.5 (e.g. "retrieved 7× recently but decayed to 0.42 — verify_note or revise"). Index-free — no embedder call. No-op when there's no selection log yet (fresh vault, or `telemetry.enabled: false`). Findings sorted most-retrieved first. See [v1-3-1-telemetry.md](../changelog/v1-3-1-telemetry.md), [configuration-reference.md](./configuration-reference.md#telemetry-vaultschemayml).
+
+Request either via `checks: ["code_symbols"]` / `checks: ["decay_candidates"]` (or combine with the standard four).
 
 ### `find_schema_violations` 🚫 deprecated
 **Migration:** `lint_vault({checks: ["schema"]})`

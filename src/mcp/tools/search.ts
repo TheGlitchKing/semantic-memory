@@ -1,6 +1,23 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
+import { appendEvent, recordSearchForCorrelation } from "../../core/telemetry.js";
+
+/**
+ * Selection telemetry (v1.3.1): record what a semantic search returned and prime
+ * the correlation ring so a subsequent read_note can be attributed to it. Awaited
+ * so the log is durable before the result returns; appendEvent never throws and
+ * respects the opt-out, so it can't fail the search.
+ */
+async function logSearch(ctx: ServerContext, tool: string, query: string, enriched: any[]): Promise<void> {
+  const results = enriched.map((r) => ({
+    path: r.path,
+    score: r.score,
+    ...(r.decay ? { decay: r.decay.multiplier } : {}),
+  }));
+  recordSearchForCorrelation(ctx.notesPath, results.map((r) => r.path));
+  await appendEvent(ctx.notesPath, { kind: "search", tool, query, results });
+}
 
 export function registerSearchTools(server: McpServer, ctx: ServerContext): void {
   server.tool(
@@ -32,6 +49,7 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
       if (tier) results = results.filter((r) => docByPath.get(r.path)?.tier === tier);
       if (domain) results = results.filter((r) => docByPath.get(r.path)?.domains?.includes(domain));
       const enriched = results.slice(0, limit).map((r) => ctx.enrichResult(r));
+      await logSearch(ctx, "search_semantic", query, enriched);
       return ctx.textResponse(JSON.stringify(enriched, null, 2));
     }
   );
@@ -122,6 +140,7 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
       if (domain) hybrid = hybrid.filter((r) => docByPath.get(r.path)?.domains?.includes(domain));
 
       const enriched = hybrid.slice(0, limit).map((r) => ctx.enrichResult(r));
+      await logSearch(ctx, "search_hybrid", query, enriched);
       return ctx.textResponse(JSON.stringify(enriched, null, 2));
     }
   );

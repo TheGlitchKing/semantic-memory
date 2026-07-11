@@ -2,6 +2,30 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.3.1] - 2026-07-10 — Selection-logging telemetry (the v1.4 precursor)
+
+Ships the two pieces deferred out of v1.3.0 so retrieval can learn from its own outcomes. v1.3.1 only **observes** — there is no ranking change (usage-feedback ranking is v1.4). Strictly local, append-only, opt-out.
+
+### Added
+
+- **Selection logging** (`src/core/telemetry.ts`) → `.claude/.semantic-memory/selection.jsonl` (local, append-only JSONL, gitignored, never leaves the machine). Two event kinds: a `search` event (`{tool, query, results:[{path, score, decay?}]}`) logged by `search_semantic`/`search_hybrid` — reusing the decay multiplier already computed — and a `selection` event (`{note_path, via, correlated}`) logged by `read_note`. `correlated: true` marks a read that followed a search which returned that path (best-effort, 60s in-process window). Awaited so the signal is durable; `appendEvent` never throws and respects the opt-out, so it can never fail the tool. Config: `telemetry.enabled` in `vault.schema.yml` (default true; `false` disables all logging). **No network** — enforced by a unit test that greps the module.
+- **`lint_vault({checks:["decay_candidates"]})`** — new opt-in lint rule. Cross-references the selection log (notes that appeared in recent search results) against each note's current decay multiplier, and flags notes retrieved frequently but decayed to ≤0.5 ("retrieved N× recently but decayed to M — verify_note or revise"), sorted most-retrieved first. Index-free (no embedder); a silent no-op when there's no selection log. Never in the default report, same as `code_symbols`.
+- **`semantic-memory selection-stats --notes <path>`** — CLI rollup of the log: searches, selections, most-cited notes, and retrieved-but-never-cited notes (`--json` for raw).
+
+### Fixed
+
+- **`regenerate_contract` no longer hardcodes the contract version** (`src/mcp/tools/contract.ts` had `pluginVersion: "1.1.0"` frozen, so AGENTS.md was stamped 1.1.0 on every regeneration — the same class of freeze bug as the `plugin.json` fix in 1.2.2). Now resolves the real version by walking up from the module's runtime location to the package's own `package.json` (matched by name), robust to tsup bundling/splitting. (Landed on main ahead of this release; AGENTS.md was regenerated to 1.3.0.)
+
+### Deferred (still, to v1.4+)
+
+- Backlink hotness (wired but flag-off) and the **usage-feedback ranking** that consumes this log — the latter is v1.4 Phase 9. v1.3.1 deliberately produces the signal without acting on it, so the log can accumulate real data before ranking tunes against it.
+
+### Tests
+
+- New: `test/unit/telemetry.test.ts` (append/read, opt-out, fire-and-forget-never-throws, correlation window, stats rollup, no-network grep); `test/unit/lint-decay-candidates.test.ts` (flags retrieved-but-decayed, spares fresh, opt-in gating, no-log no-op).
+- Extended: `test/integration/mcp-server.test.ts` (search→read lands both events; the selection is `correlated`).
+- Updated: tool-surface + tool-output regression snapshots (additive `decay_candidates` enum value + byRule key). 328 tests green.
+
 ## [1.3.0] - 2026-07-10 — Confidence decay: age-aware retrieval ranking
 
 Replaces age-blind ranking with smooth, type-aware confidence decay. Notes age out of relevance gracefully; explicitly-verified notes reset the clock; agents see decay state and can re-verify. Opt-out via one config line.

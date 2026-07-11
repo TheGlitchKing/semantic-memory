@@ -5,6 +5,8 @@ import { glob } from "glob";
 import matter from "gray-matter";
 import { loadSchema, validateNote, type LintFinding, type VaultSchema } from "./schema.js";
 import { deriveProjectRoot } from "./session.js";
+import { computeDecay, loadDecayConfig, normalizeVerifiedDate } from "./decay.js";
+import { readSelectionLog } from "./telemetry.js";
 
 export interface LintReport {
   schemaPath: string;
@@ -15,6 +17,7 @@ export interface LintReport {
     stale: LintFinding[];
     broken_links: LintFinding[];
     code_symbols: LintFinding[];
+    decay_candidates: LintFinding[];
   };
   counts: {
     errors: number;
@@ -38,6 +41,14 @@ export async function lintVault(
     checkCodeSymbols?: boolean;
     /** Override the project root for code-symbol resolution (default: derived from notesPath). */
     projectRoot?: string;
+    /**
+     * When true, run the decay-candidates check: cross-reference the selection
+     * log (notes that appeared in recent search results) against each note's
+     * current decay multiplier, and flag notes that are frequently retrieved yet
+     * heavily decayed ("relevant but going stale — verify or revise"). Opt-in;
+     * a silent no-op when no selection log exists.
+     */
+    checkDecayCandidates?: boolean;
   } = {}
 ): Promise<LintReport> {
   const schema = opts.schemaOverride ?? (await loadSchema(notesPath));
@@ -72,12 +83,17 @@ export async function lintVault(
     if (codeRoot) findings.push(...findCodeSymbolDrift(rel, raw, codeRoot));
   }
 
+  if (opts.checkDecayCandidates) {
+    findings.push(...(await findDecayCandidates(notesPath, rawByPath, opts.todayIso)));
+  }
+
   const byRule = {
     schema_violations: findings.filter((f) => f.rule === "schema_violations"),
     missing_provenance: findings.filter((f) => f.rule === "missing_provenance"),
     stale: findings.filter((f) => f.rule === "stale"),
     broken_links: findings.filter((f) => f.rule === "broken_links"),
     code_symbols: findings.filter((f) => f.rule === "code_symbols"),
+    decay_candidates: findings.filter((f) => f.rule === "decay_candidates"),
   };
   const errors = findings.filter((f) => f.severity === "error").length;
   const warnings = findings.filter((f) => f.severity === "warn").length;
@@ -192,6 +208,64 @@ function looksLikeRepoPath(token: string): boolean {
   if (dot <= 0) return false; // no extension → likely a dir or a symbol like a/b
   const ext = last.slice(dot + 1).toLowerCase();
   return CODE_EXTENSIONS.has(ext);
+}
+
+/** Multiplier at or below which a frequently-retrieved note is worth surfacing. */
+const DECAY_CANDIDATE_THRESHOLD = 0.5;
+
+/**
+ * Decay-candidates: notes that keep showing up in search results but have decayed.
+ * Reads the selection log (search events record the paths each query returned),
+ * computes each retrieved note's current decay multiplier from its frontmatter,
+ * and flags those at/below the threshold — "this keeps being relevant but is
+ * going stale; verify or revise." Index-free (no embedder); a no-op when there's
+ * no selection log yet.
+ */
+async function findDecayCandidates(
+  notesPath: string,
+  rawByPath: Map<string, string>,
+  todayIso?: string
+): Promise<LintFinding[]> {
+  const events = await readSelectionLog(notesPath);
+  if (events.length === 0) return [];
+
+  // Count how often each path was retrieved (appeared in a search's results).
+  const retrieved = new Map<string, number>();
+  for (const e of events) {
+    if (e.kind === "search") {
+      for (const r of e.results) retrieved.set(r.path, (retrieved.get(r.path) ?? 0) + 1);
+    }
+  }
+  if (retrieved.size === 0) return [];
+
+  const config = loadDecayConfig(notesPath);
+  if (!config.enabled) return [];
+  const nowMs = todayIso ? Date.parse(todayIso) : undefined;
+
+  const findings: LintFinding[] = [];
+  for (const [rel, count] of retrieved) {
+    const raw = rawByPath.get(rel);
+    if (!raw) continue; // retrieved path no longer in the vault — skip
+    const { data: fm } = matter(raw);
+    const decay = computeDecay({
+      type: typeof fm.type === "string" ? fm.type : undefined,
+      last_verified: normalizeVerifiedDate(fm.last_verified),
+      evergreen: fm.evergreen === true,
+      config,
+      nowMs,
+    });
+    if (decay.multiplier <= DECAY_CANDIDATE_THRESHOLD) {
+      findings.push({
+        path: rel,
+        rule: "decay_candidates",
+        severity: "warn",
+        message: `retrieved ${count}× recently but decayed to ${decay.multiplier.toFixed(2)} (age ${Math.round(decay.age_days)}d) — verify_note or revise`,
+      });
+    }
+  }
+  // Most-retrieved first — the ones worth re-verifying soonest.
+  findings.sort((a, b) => (retrieved.get(b.path) ?? 0) - (retrieved.get(a.path) ?? 0));
+  return findings;
 }
 
 export function formatLintReport(report: LintReport, opts: { rule?: keyof LintReport["byRule"] } = {}): string {
