@@ -132,13 +132,42 @@ function queryRecentLogViaCli(cliBin, vaultPath, sinceIso, limit = 20) {
   }
 }
 
+// Injection hygiene (v1.4 Phase 2). The <vault-context> block is per-prompt
+// overhead, so it earns its tokens or stays out:
+//  - score gate: if the best hit is weak, inject nothing (a "thanks"/"proceed"
+//    prompt shouldn't drag six 0.2-score hits into context). Tunable via
+//    SEMANTIC_MEMORY_INJECT_MIN_SCORE.
+//  - dedup by basename: collapse archive/x.md + archive/pre-restructure/x.md to
+//    one slot (keep the highest-scored), so retired-doc twins stop burning slots.
+//  - top-3, not top-6.
+//  - one compact instructions line — the full cite-or-deflect rule lives once in
+//    CLAUDE.md and the vault-first skill, not repeated in full every prompt.
+const INJECT_MIN_SCORE = Number(process.env.SEMANTIC_MEMORY_INJECT_MIN_SCORE) || 0.35;
+
+function dedupeByBasename(hits) {
+  const seen = new Set();
+  const out = [];
+  for (const h of hits) {
+    const base = String(h.path || "").split("/").pop();
+    if (seen.has(base)) continue;
+    seen.add(base);
+    out.push(h);
+  }
+  return out;
+}
+
 export function formatContextBlock(source, query, hits) {
   if (!hits || hits.length === 0) return "";
+  // Score gate: skip injection entirely when nothing is strongly relevant.
+  const topScore = Math.max(...hits.map((h) => (typeof h.score === "number" ? h.score : 0)));
+  if (topScore < INJECT_MIN_SCORE) return "";
+
+  const shown = dedupeByBasename(hits).slice(0, 3);
   const lines = [];
   lines.push(`<vault-context source="${source}" query="${escapeAttr(query)}">`);
   lines.push(`The vault (semantic-memory) was proactively searched. Top hits:`);
   lines.push("");
-  for (const h of hits.slice(0, 6)) {
+  for (const h of shown) {
     const score = typeof h.score === "number" ? h.score.toFixed(2) : "";
     lines.push(`- \`${h.path}\`${score ? ` (score: ${score})` : ""}`);
     if (h.snippet) {
@@ -147,7 +176,7 @@ export function formatContextBlock(source, query, hits) {
     }
   }
   lines.push("");
-  lines.push(`Instructions: This block is injected on every prompt. Apply cite-or-deflect ONLY when the user's prompt is a project prose lookup (how/why/where does X work here, runbook/process question, gotcha or known-issue lookup). For those, read promising hits via \`mcp__semantic-vault__read_note\` and either cite the filenames or say "not in vault" and name the nearest misses. For meta/tool questions, debugging, status checks, directives ("proceed", "merge"), or conversational turns, ignore this block silently. Do NOT narrate "X unrelated" or "not in vault for this" on non-lookup prompts — that is noise, not honest deflection.`);
+  lines.push(`Instructions: Apply cite-or-deflect ONLY to project prose lookups (how/why/where does X work here) — cite the hit paths, or say "not in vault". For meta/tool/debug/status/directive/conversational prompts, ignore this block silently. Do NOT narrate "X unrelated" or "not in vault" on those.`);
   lines.push(`</vault-context>`);
   return lines.join("\n");
 }
