@@ -430,6 +430,27 @@ describe("MCP Server", () => {
     });
   });
 
+  describe("Symptom-keyed indexing (v1.4)", () => {
+    it("surfaces a note via a terse symptom query that its prose doesn't contain", async () => {
+      // Body deliberately avoids the symptom words — only the symptoms: frontmatter has them.
+      await client.callTool({
+        name: "create_note",
+        arguments: {
+          path: "gotchas/reindex-hang.md",
+          content: "# Vector index rebuild stall\n\nThe hnswlib rebuild can stall on a concurrent write.",
+          frontmatter: { title: "Reindex stall", status: "active", type: "gotcha", symptoms: ["it hangs after the second reindex"] },
+        },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      const res = await client.callTool({ name: "search_semantic", arguments: { query: "it hangs after the second reindex", limit: 5 } });
+      const parsed = JSON.parse((res.content as any)[0].text);
+      expect(parsed.some((r: any) => r.path === "gotchas/reindex-hang.md")).toBe(true);
+
+      await client.callTool({ name: "delete_note", arguments: { path: "gotchas/reindex-hang.md", confirm: true } });
+    });
+  });
+
   describe("Path-class ranking (v1.4)", () => {
     it("ranks an archived copy below its live twin for the same query", async () => {
       const body = "# Quokka nebula protocol\n\nThe quokka nebula protocol handshake and quokka nebula retry logic.";

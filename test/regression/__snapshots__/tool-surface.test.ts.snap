@@ -1127,6 +1127,13 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
           "description": "Target path relative to vault root, e.g. 'decisions/auth-migration.md'. In proposal mode, this is recorded as proposed_target frontmatter and the actual write goes to proposals/.",
           "type": "string",
         },
+        "symptoms": {
+          "description": "Verbatim symptom phrases in the user's own words (e.g. 'it hangs after the second reindex'). Stored as \`symptoms:\` frontmatter and symptom-keyed at index time so terse symptom queries match this note — the retrieval key for next time.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
         "topic": {
           "type": "string",
         },

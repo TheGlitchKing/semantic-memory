@@ -87,6 +87,7 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
       decision_maker: z.string().optional(),
       decided_on: z.string().optional(),
       severity: z.string().optional(),
+      symptoms: z.array(z.string()).optional().describe("Verbatim symptom phrases in the user's own words (e.g. 'it hangs after the second reindex'). Stored as `symptoms:` frontmatter and symptom-keyed at index time so terse symptom queries match this note — the retrieval key for next time."),
       dry_run: z.boolean().optional().default(false),
       proposal: z.boolean().optional().default(false).describe("Write to proposals/<date>-<slug>.md with status:proposal instead of the canonical destination. Use for review-first workflows."),
       proposal_subdir: z.string().optional().describe("Override the proposal subdirectory (default 'proposals'). Useful for source segregation, e.g. 'proposals/research'."),
@@ -128,6 +129,7 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
         decision_maker: args.decision_maker,
         decided_on: args.decided_on,
         severity: args.severity,
+        symptoms: args.symptoms,
         proposal: args.proposal,
         proposal_subdir: args.proposal_subdir,
       });
