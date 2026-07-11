@@ -6,14 +6,14 @@ audience: [developers]
 tags: [registry, reference]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.1'
+version: '1.4.0'
 purpose: Quick reference for reference documentation
 load_priority: 5
 ---
 
 # Reference Registry
 
-> API/tool/command surfaces: MCP tools (41 as of v1.3; incl. the v1.3.1 `decay_candidates` opt-in lint check), CLI (v1.1 skills + v1.2 migrate-state + v1.2.3 healthcheck --fix + v1.3 decay-config/decay-trace + v1.3.1 selection-stats), hooks, configuration (incl. the v1.3 decay: and v1.3.1 telemetry: blocks), frontmatter.
+> API/tool/command surfaces: MCP tools (41 as of v1.3; incl. the v1.3.1 `decay_candidates` opt-in lint check), CLI (v1.1 skills + v1.2 migrate-state + v1.2.3 healthcheck --fix + v1.3 decay-config/decay-trace + v1.3.1 selection-stats + v1.4 lexicon), hooks, configuration (incl. the v1.3 decay:, v1.3.1 telemetry:, and v1.4 path_class:/tools: blocks), frontmatter (incl. v1.4 symptoms + alias type).
 
 ## At a Glance
 

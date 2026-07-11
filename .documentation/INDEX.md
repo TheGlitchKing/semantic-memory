@@ -6,7 +6,7 @@ audience: [developers, admin]
 tags: [documentation, navigation, index, hewtd]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.1'
+version: '1.4.0'
 purpose: Root navigation hub for all semantic-memory operator documentation
 load_priority: 10
 ---
@@ -15,11 +15,11 @@ load_priority: 10
 
 > Operator's manual for `@theglitchking/semantic-memory` — the unified memory-layer plugin for Claude Code. Organized as a hewtd-style hierarchical domain structure: each domain has its own `INDEX.md` (human navigation) and `REGISTRY.md` (metadata/registry view).
 
-**Plugin version:** 1.3.1 · **Tool count:** 41 MCP tools (write mode), 21 (read-only) · **Test suite:** 328/328
+**Plugin version:** 1.4.0 · **Tool count:** 42 MCP tools (write mode), 21 (read-only) · **Test suite:** 371/371
 
 ## What's covered
 
-This documentation set covers everything from the original five-layer activation/routing/capture stack (v0.x → v1.0 substrate) through the v1.1 brain-absorption (AGENTS.md contract, hard-gated sessions, multi-agent skill bundler, drift detection), v1.2 state consolidation under `.claude/.semantic-memory/`, the v1.2.3 hygiene completion (`/healthcheck --fix`, `code_symbols` lint, fresh-install CI smoke), v1.3 confidence decay (age-aware ranking, `verify_note`, `evergreen`), and v1.3.1 selection-logging telemetry (`selection.jsonl`, `decay_candidates` lint, `selection-stats`).
+This documentation set covers everything from the original five-layer activation/routing/capture stack (v0.x → v1.0 substrate) through the v1.1 brain-absorption (AGENTS.md contract, hard-gated sessions, multi-agent skill bundler, drift detection), v1.2 state consolidation under `.claude/.semantic-memory/`, the v1.2.3 hygiene completion (`/healthcheck --fix`, `code_symbols` lint, fresh-install CI smoke), v1.3 confidence decay (age-aware ranking, `verify_note`, `evergreen`), v1.3.1 selection-logging telemetry (`selection.jsonl`, `decay_candidates` lint, `selection-stats`), and the v1.4.0 resident-expert bridge (learned lexicon + alias capture, symptom-keyed indexing, query expansion, path-class down-weight, injection hygiene, section reads).
 
 If you're upgrading from v0.x or v1.0, start with the [v1.0 rebrand changelog](./changelog/v1-0-rebrand.md) and the [v1.1 brain-absorption changelog](./changelog/v1-1-brain-absorption.md).
 
@@ -29,7 +29,7 @@ If you're upgrading from v0.x or v1.0, start with the [v1.0 rebrand changelog](.
 |---|---|---|
 | **Quickstart** | [quickstart/INDEX.md](./quickstart/INDEX.md) | Install + overview — read first |
 | **Architecture** | [architecture/INDEX.md](./architecture/INDEX.md) | Five layers, injection points, MCP internals, sessions, contract, indices |
-| **Reference** | [reference/INDEX.md](./reference/INDEX.md) | All 41 MCP tools, CLI, hooks, frontmatter spec, config |
+| **Reference** | [reference/INDEX.md](./reference/INDEX.md) | All 42 MCP tools, CLI, hooks, frontmatter spec, config |
 | **Operational** | [operational/INDEX.md](./operational/INDEX.md) | Modes, sessions, capture workflows, drift detection, logs, migrate-state |
 | **Troubleshooting** | [troubleshooting/INDEX.md](./troubleshooting/INDEX.md) | Symptom / cause / fix matrix |
 | **Testing** | [testing/INDEX.md](./testing/INDEX.md) | Test suite + validation |

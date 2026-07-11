@@ -2,6 +2,30 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.4.0] - 2026-07-10 — Resident-expert bridge (v1.4.0: Phases 1–7)
+
+The human→LLM bridge arc: learn how *this human* talks about the system, map that phrasing to concrete artifacts, and pay down the plugin's own token overhead. Tool surface 41 → 42 (`manage_lexicon`). Additive throughout; default ranking behavior is unchanged except for the new archive down-weight (opt-out).
+
+### Added
+
+- **Golden retrieval eval harness** (`test/retrieval-eval/`, `npm run eval`). Pure metrics engine (recall@k, MRR, per case-class) + a class-tagged golden set driven through the real `search_semantic` stack. The measurement foundation — every ranking/expansion change now shows a delta. Baseline captured at recall@1=86%, MRR=0.929.
+- **Path-class ranking** (`src/core/path-class.ts`). `archive/**` → 0.3× down-weight (configurable via `path_class` in `vault.schema.yml`), composed multiplicatively with decay + `load_priority` at the same rank site. Directly fixes retired-doc copies dominating results.
+- **Injection hygiene** in `formatContextBlock` (the `<vault-context>` render point): score-gates weak prompts (`SEMANTIC_MEMORY_INJECT_MIN_SCORE`, default 0.35), dedupes archive twins by basename, caps at top-3, and shrinks the instructions from ~150 to ~45 words — cutting per-prompt token overhead at the source while preserving the cite-or-deflect scoping.
+- **Lexicon corpus** — learned human→artifact aliases. `alias` note type under `<vault>/lexicon/`, a derived `lexicon-cache.json`, and **`manage_lexicon`** (`action: add|lookup|list|remove|compile`, one tool). CLI: `semantic-memory lexicon list|compile|add`. Repeat observations bump `evidence_count` + confidence.
+- **Alias capture loop** — propose-and-confirm: a `vault-first` skill instruction offers a `manage_lexicon add` when the LLM resolves the user's vague phrasing to a concrete artifact (never auto-adds). Conflict detection via opt-in `lint_vault({checks:["alias_conflicts"]})` (a phrase mapping to >1 target is surfaced, never auto-resolved).
+- **Verbatim symptom capture + symptom-keyed indexing.** `synthesize_note` gains a `symptoms` param → `symptoms:` frontmatter; the indexer adds each verbatim symptom phrase as its own chunk pointing at the note (synthetic child chunks, no index-format change). A note surfaces on a terse symptom query even when its prose never uses those words — the asymmetric-retrieval fix.
+- **Query expansion (two tiers).** Tier 1 (deterministic, in `vault-context.js`): `expandQueryViaLexicon` appends alias canonical targets to a user utterance before embedding. Tier 2 (LLM-side): a `vault-first` instruction to rewrite a terse utterance with conversation context and re-search once before concluding "not in vault".
+- **Token-frugal tool surface.** `read_note` gains a `section` param (return one heading's section, not the whole file). Conditional tool registration (`tools.conditional` in `vault.schema.yml`, **default OFF** per the risk of mid-session mode switches): when enabled, outage-silence mode registers only the core search/read surface.
+
+### Deferred within the arc (documented)
+
+Near-duplicate collapse at index time (injection-layer basename dedup covers the observed case), rolling-topic query expansion (`topic.json` — start dumb, KQ7), and compact-search-output as the default shape. v1.5.0 (dossiers, usage-feedback ranking, session paging, speaker profile) is the next arc.
+
+### Tests
+
+- New unit suites: eval-metrics, path-class, injection-hygiene, lexicon, lint-alias-conflicts, query-expansion, section, tools-config. New integration: symptom-keyed retrieval, archive down-weight, section reads, conditional registration. Golden eval wired into `npm run eval`.
+- Tool-surface + output snapshots updated additively (manage_lexicon; alias_conflicts enum/byRule; read_note `section` + synthesize_note `symptoms` params). Tool counts 41 → 42 (read-only unchanged at 21). **371 tests green; fresh-install smoke PASS.**
+
 ## [1.3.2] - 2026-07-10 — Fix hook double-registration (double vault-context injection)
 
 ### Fixed

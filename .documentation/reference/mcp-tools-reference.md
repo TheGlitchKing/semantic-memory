@@ -1,25 +1,25 @@
 ---
-title: MCP Tools Reference (41 tools)
+title: MCP Tools Reference (42 tools)
 tier: reference
 domains: [reference]
 audience: [developers]
 tags: [mcp, tools, api, reference, tools-catalog]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.1'
-purpose: All 41 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, the v1.3 confidence-decay verify_note tool, and the v1.3.1 decay_candidates lint check.
+version: '1.4.0'
+purpose: All 42 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, the v1.3 confidence-decay verify_note tool, the v1.3.1 decay_candidates lint check, and the v1.4.0 manage_lexicon tool plus read_note/synthesize_note/lint_vault additions.
 load_priority: 9
 ---
 
 # MCP tools reference
 
-> 41 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode (`verify_note` is write-gated, so read-only mode is unchanged at 21). When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
+> 42 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode (`verify_note` and `manage_lexicon` are write-gated, so read-only mode is unchanged at 21). When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
 
 Tools fall into 11 categories. Write tools are gated by the `--read-only` flag on the server; read tools are always available.
 
 ## Surface delta vs v0.x
 
-This doc is current to v1.3.0. v0.x had 33 tools. v1.1.0 added 7:
+This doc is current to v1.4.0. v0.x had 33 tools. v1.1.0 added 7:
 
 - `regenerate_contract` + `inspect_contract` (Phase 3 — AGENTS.md)
 - `synthesize_promote` (Phase 4 — proposal flow)
@@ -35,6 +35,8 @@ v1.1.0 also marked 6 tools as deprecated; they remain callable through v1.x but 
 - `rename_tag` → use `manage_tags({action: "rename", from, to})`
 
 v1.3.0 added 1 tool: `verify_note` (confidence-decay Phase — resets a note's decay clock). No deprecations in v1.3.0.
+
+v1.4.0 added 1 tool: `manage_lexicon` (resident-bridge Phase — the learned human→artifact lexicon). No deprecations in v1.4.0. v1.4.0 also extended three existing tools: `read_note` (new `section` param), `synthesize_note` (new `symptoms` param), and `lint_vault` (two new opt-in checks: `alias_conflicts`, alongside the existing `code_symbols`/`decay_candidates`).
 
 ---
 
@@ -66,7 +68,8 @@ Semantic + graph rerank. **The default for most queries.**
 ## Read (3)
 
 ### `read_note`
-**Args:** `{ path }`. Returns full markdown content.
+**Args:** `{ path, section? }`. Returns full markdown content by default.
+**v1.4+ `section`:** when a heading name is given, returns only that heading's section (content through the next same-or-higher heading) instead of the whole note — a token-saver for targeted reads.
 
 ### `read_multiple_notes` 🚫 deprecated (v2.0 removal)
 **Args:** `{ paths: string[] }`. Batch fetch.
@@ -89,7 +92,7 @@ Semantic + graph rerank. **The default for most queries.**
 ### `move_note`
 **Args:** `{ from, to }`. Updates wikilinks across the vault.
 
-## Patch / Synthesis (6) — Phase 2/3 + v1.1 + v1.3 additions
+## Patch / Synthesis (7) — Phase 2/3 + v1.1 + v1.3 + v1.4 additions
 
 ### `apply_patch` ⭐
 Atomic multi-note ChangeSet with rollback.
@@ -110,8 +113,9 @@ Atomic multi-note ChangeSet with rollback.
 
 ### `synthesize_note` ⭐
 Turn an answer + sources into a filed note with provenance.
-**Args:** `{ topic, answer, suggested_path, type?="note", sources?, derived_from?, related_notes?, status?="active", confidence?="medium", decision_maker?, decided_on?, severity?, dry_run?=false, proposal?=false, proposal_subdir? }`
+**Args:** `{ topic, answer, suggested_path, type?="note", sources?, derived_from?, related_notes?, status?="active", confidence?="medium", decision_maker?, decided_on?, severity?, symptoms?, dry_run?=false, proposal?=false, proposal_subdir? }`
 **v1.1+ proposal mode:** when `proposal: true`, writes to `<proposal_subdir>/<YYYY-MM-DD>-<slug>.md` (default subdir `proposals/`) with `status: proposal` and `proposed_target` frontmatter recording the canonical destination. Use `synthesize_promote` to later move to canonical.
+**v1.4+ `symptoms`:** `symptoms?: string[]` — verbatim symptom phrases, stored as `symptoms:` frontmatter and symptom-keyed at index time (each phrase indexed as its own chunk) so terse symptom-shaped queries match the note even when the note's prose doesn't use those exact words. See [frontmatter-spec.md](./frontmatter-spec.md).
 **Side effect:** `kind=synthesis` entry on success, `kind=error` on failure.
 
 ### `synthesize_promote` 🆕 v1.1+
@@ -138,6 +142,18 @@ Stamp a note as freshly re-confirmed, resetting its confidence-decay clock.
 **Use when:** you've just re-confirmed a note is still true and want it to rank fresh again in `search_semantic`/`search_hybrid`.
 **See:** [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml).
 
+### `manage_lexicon` 🆕 v1.4+
+Manage the learned human→artifact lexicon — the alias mapping from human phrases to canonical vault/code targets.
+**Args:** `{ action: "add"|"lookup"|"list"|"remove"|"compile", canonical?, phrases?: string[], query?, source?: "learned"|"authored" }`
+**Behavior by action:**
+- `add` — upserts a canonical target + human phrases; re-adding an existing canonical/phrase pair bumps `evidence_count` instead of duplicating.
+- `lookup` — expands a `query` by matching it against stored alias phrases, returning the canonical target(s) it resolves to.
+- `list` — lists all lexicon entries.
+- `remove` — removes an entry by `canonical`.
+- `compile` — rebuilds `.claude/.semantic-memory/lexicon-cache.json` from the vault's `alias`-type notes.
+**Side effect:** writes/updates notes under `<vault>/lexicon/` (the `alias` note type). See [frontmatter-spec.md](./frontmatter-spec.md) for the `alias` type's fields.
+**See:** [configuration-reference.md](./configuration-reference.md), [cli-reference.md](./cli-reference.md) for the equivalent `lexicon` CLI subcommand group.
+
 ## Lint (5)
 
 ### `lint_vault` ⭐
@@ -150,8 +166,9 @@ Run lint rules across the vault. Default returns the full report.
 
 - **`code_symbols`** (v1.2.3+) — flags inline-code file-path references in note content that no longer exist under the project root. Catches doc drift after refactors/renames. No-op outside a code repo. See [v1-2-3-hygiene-completion.md](../changelog/v1-2-3-hygiene-completion.md).
 - **`decay_candidates`** (v1.3.1+) — cross-references the selection log (`.claude/.semantic-memory/selection.jsonl`) against each note's current decay multiplier, flagging notes retrieved frequently but decayed to ≤0.5 (e.g. "retrieved 7× recently but decayed to 0.42 — verify_note or revise"). Index-free — no embedder call. No-op when there's no selection log yet (fresh vault, or `telemetry.enabled: false`). Findings sorted most-retrieved first. See [v1-3-1-telemetry.md](../changelog/v1-3-1-telemetry.md), [configuration-reference.md](./configuration-reference.md#telemetry-vaultschemayml).
+- **`alias_conflicts`** (v1.4+) — flags a lexicon phrase that maps to more than one canonical target (ambiguous alias). Reads the same `alias`-type notes / lexicon cache that `manage_lexicon` manages. Never included in the default report — always opt-in.
 
-Request either via `checks: ["code_symbols"]` / `checks: ["decay_candidates"]` (or combine with the standard four).
+Request either via `checks: ["code_symbols"]` / `checks: ["decay_candidates"]` / `checks: ["alias_conflicts"]` (or combine with the standard four — the `checks` param's enum now includes all six).
 
 ### `find_schema_violations` 🚫 deprecated
 **Migration:** `lint_vault({checks: ["schema"]})`

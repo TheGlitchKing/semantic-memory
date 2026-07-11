@@ -29,6 +29,7 @@ load_priority: 6
 - **[AGENTS.md Contract Guide](./contract-guide.md)** — The canonical agent contract artifact. When to generate, what's in the managed block, hand-edit detection, how it relates to CLAUDE.md, what to commit to git.
 - **[Drift Detection](./drift-detection.md)** — SessionStart fast-tier auto-check + manual `/healthcheck` deep audit. Per-finding remediation. What `/healthcheck --fix` (v1.2.3) auto-fixes.
 - **[Confidence Decay Guide](./decay-guide.md)** — Operating v1.3 confidence decay: read decay state (`decay` block, `decay-trace`), re-verify with `verify_note`, mark `evergreen`, tune half-lives, disable.
+- **[Lexicon & Bridge Guide](./lexicon-guide.md)** — Operating the human→LLM bridge (v1.4): learned aliases (manage_lexicon), propose-and-confirm capture, alias_conflicts, verbatim symptom capture, and Tier-1/Tier-2 query expansion.
 
 ### v1.2+ additions
 

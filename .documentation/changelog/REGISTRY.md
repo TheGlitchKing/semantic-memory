@@ -6,20 +6,20 @@ audience: [developers]
 tags: [registry, changelog]
 status: active
 last_updated: '2026-07-10'
-version: '1.3.1'
+version: '1.4.0'
 purpose: Quick reference for changelog documentation
 load_priority: 5
 ---
 
 # Changelog Registry
 
-> Per-version change logs covering v0.x phased build through v1.3.1.
+> Per-version change logs covering v0.x phased build through v1.4.0.
 
 ## At a Glance
 
 | Metric | Value |
 |--------|-------|
-| Documents | 10 |
+| Documents | 11 |
 | Domain | changelog |
 
 ## Documents
@@ -34,6 +34,7 @@ load_priority: 5
 | [`v1-2-3-hygiene-completion.md`](./v1-2-3-hygiene-completion.md) | reference | 1.3.0 | v1.2.3: /healthcheck --fix auto-remediation, code_symbols lint, fresh-install CI smoke. |
 | [`v1-3-confidence-decay.md`](./v1-3-confidence-decay.md) | reference | 1.3.0 | v1.3.0: age-aware confidence-decay ranking, verify_note, evergreen, decay block, decay-config/decay-trace CLI. |
 | [`v1-3-1-telemetry.md`](./v1-3-1-telemetry.md) | reference | 1.3.1 | v1.3.1: local selection-logging telemetry (selection.jsonl), decay_candidates lint, selection-stats CLI, contract version-freeze fix. |
+| [`v1-4-0-resident-bridge.md`](./v1-4-0-resident-bridge.md) | reference | 1.4.0 | v1.4.0: resident-expert bridge — lexicon/manage_lexicon, alias capture, symptom-keyed indexing, query expansion, path-class, injection hygiene, section reads, conditional tools, eval harness. |
 
 ### v0.x — semantic-sidekick phased build
 
