@@ -81,6 +81,15 @@ decay:
     enabled: false              # extend half-life for heavily-backlinked notes (opt-in)
     cap: 2.0
 
+# Path-class ranking (v1.4). Down-weights whole regions of the vault by path glob
+# (composes multiplicatively with decay + load_priority). First matching rule wins.
+# The default down-weights archived notes so retired docs stop dominating results.
+path_class:
+  enabled: true
+  rules:
+    - glob: "archive/**"
+      multiplier: 0.3
+
 # Selection-logging telemetry (v1.3.1). Records what search returned and which
 # note the answer used, to a LOCAL append-only JSONL at
 # .claude/.semantic-memory/selection.jsonl (gitignored). Never leaves the machine.

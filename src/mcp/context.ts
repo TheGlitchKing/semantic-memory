@@ -10,6 +10,7 @@ import { NoteCrud } from "../core/crud.js";
 import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
 import { SessionManager, deriveSessionDir } from "../core/session.js";
 import { computeDecay, loadDecayConfig, normalizeVerifiedDate, type DecayConfig } from "../core/decay.js";
+import { pathClassMultiplier, loadPathClassConfig, type PathClassConfig } from "../core/path-class.js";
 import type { IndexedDocument, IndexState } from "../core/types.js";
 
 export interface ServerOptions {
@@ -76,6 +77,12 @@ export interface ServerContext {
    * search_semantic / search_hybrid, never search_text / search_graph.
    */
   applyDecay<T extends { path: string; score: number }>(r: T): T & { decay?: DecayBlock };
+  /**
+   * Apply the path-class multiplier (e.g. archive/** down-weight) to a scored
+   * result. Composes multiplicatively with decay/priority at the same rank site.
+   * No-op when disabled or no glob matches.
+   */
+  applyPathClass<T extends { path: string; score: number }>(r: T): T;
   applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -320,6 +327,17 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     return scored;
   }
 
+  let pathClassConfig: PathClassConfig | null = null;
+  function getPathClassConfig(): PathClassConfig {
+    if (!pathClassConfig) pathClassConfig = loadPathClassConfig(notesPath);
+    return pathClassConfig;
+  }
+
+  function applyPathClass<T extends { path: string; score: number }>(r: T): T {
+    const m = pathClassMultiplier(r.path, getPathClassConfig());
+    return m === 1 ? r : { ...r, score: r.score * m };
+  }
+
   function applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -362,6 +380,7 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     enrichResult,
     applyPriorityBoost,
     applyDecay,
+    applyPathClass,
     applyDateFilter,
   };
 }

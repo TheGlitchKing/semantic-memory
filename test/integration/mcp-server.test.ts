@@ -430,6 +430,33 @@ describe("MCP Server", () => {
     });
   });
 
+  describe("Path-class ranking (v1.4)", () => {
+    it("ranks an archived copy below its live twin for the same query", async () => {
+      const body = "# Quokka nebula protocol\n\nThe quokka nebula protocol handshake and quokka nebula retry logic.";
+      await client.callTool({
+        name: "create_note",
+        arguments: { path: "live/quokka.md", content: body, frontmatter: { title: "Quokka live", status: "active", type: "note" } },
+      });
+      await client.callTool({
+        name: "create_note",
+        arguments: { path: "archive/quokka.md", content: body, frontmatter: { title: "Quokka archived", status: "archived", type: "note" } },
+      });
+      await client.callTool({ name: "reindex", arguments: {} });
+
+      const res = await client.callTool({ name: "search_semantic", arguments: { query: "quokka nebula protocol handshake", limit: 10 } });
+      const parsed = JSON.parse((res.content as any)[0].text);
+      const liveIdx = parsed.findIndex((r: any) => r.path === "live/quokka.md");
+      const archiveIdx = parsed.findIndex((r: any) => r.path === "archive/quokka.md");
+      expect(liveIdx).toBeGreaterThanOrEqual(0);
+      expect(archiveIdx).toBeGreaterThanOrEqual(0);
+      // Near-identical content, but the archived copy is down-weighted (0.3×) → ranks lower.
+      expect(liveIdx).toBeLessThan(archiveIdx);
+
+      await client.callTool({ name: "delete_note", arguments: { path: "live/quokka.md", confirm: true } });
+      await client.callTool({ name: "delete_note", arguments: { path: "archive/quokka.md", confirm: true } });
+    });
+  });
+
   describe("Selection telemetry (v1.3.1)", () => {
     it("logs a search event and a correlated selection event on search→read", async () => {
       await client.callTool({
