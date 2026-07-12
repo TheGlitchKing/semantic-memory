@@ -8,6 +8,8 @@ import { installDefaultSchema } from "../../core/schema.js";
 import { logEvent } from "../../core/log.js";
 import { computeDecay, loadDecayConfig } from "../../core/decay.js";
 import { addAlias, removeAlias, compileLexicon, loadLexiconCache, expandQuery } from "../../core/lexicon.js";
+import { initDossier, listDossiers, appendIncident, setCurrentState, resolveDossierPath, compileDossiers } from "../../core/dossier.js";
+import { initSpeakerProfile, readSpeakerProfile, updateProfileSection, SPEAKER_PROFILE_PATH } from "../../core/profile.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
@@ -374,6 +376,89 @@ export function registerPatchTools(server: McpServer, ctx: ServerContext): void 
         case "compile": {
           const entries = await compileLexicon(ctx.notesPath);
           return ctx.textResponse(`compiled ${entries.length} alias(es) to lexicon-cache.json`);
+        }
+      }
+    }
+  );
+
+  server.tool(
+    "manage_dossier",
+    "Manage entity dossiers (v1.5) — the per-component living notes that organize memory by entity instead of by file. `action`: init (scaffold a dossier for an entity with the fixed Purpose/Failure modes/Knobs/Incident log/Current state sections), append_incident (append a dated line to the Incident log — accretion, never a new note), set_state (replace the Current state one-liner), get (read a dossier by entity/alias/path), list (all dossiers with their current state). Knowledge about a critical component accretes IN PLACE here.",
+    {
+      action: z.enum(["init", "append_incident", "set_state", "get", "list"]),
+      entity: z.string().optional().describe("For init/append_incident/set_state/get: the entity name, one of its aliases, or a dossier path."),
+      aliases: z.array(z.string()).optional().describe("For init: the human's phrases for this entity (fed to the lexicon compiler for query expansion)."),
+      purpose: z.string().optional().describe("For init: seed the Purpose section instead of the placeholder."),
+      seeded_from: z.string().optional().describe("For init: provenance of the scaffold (e.g. a babel-fish project-map entry)."),
+      incident: z.string().optional().describe("For append_incident: what happened → cause → fix, in one line. Dated automatically."),
+      state: z.string().optional().describe("For set_state: the single freshest sentence about where the entity stands."),
+    },
+    async ({ action, entity, aliases, purpose, seeded_from, incident, state }) => {
+      switch (action) {
+        case "init": {
+          if (!entity) return ctx.textResponse("manage_dossier init requires `entity`");
+          const r = await initDossier(ctx.notesPath, entity, { aliases, purpose, seeded_from });
+          if (r.created) await ctx.sessions.recordNotesTouched([r.path]).catch(() => {});
+          return ctx.textResponse(JSON.stringify(r, null, 2));
+        }
+        case "append_incident": {
+          if (!entity || !incident) return ctx.textResponse("manage_dossier append_incident requires `entity` and `incident`");
+          const r = await appendIncident(ctx.notesPath, entity, incident);
+          if (!r) return ctx.textResponse(`no dossier for entity: ${entity} (run action:init first)`);
+          await ctx.sessions.recordNotesTouched([r.path]).catch(() => {});
+          await logEvent(ctx.notesPath, { kind: "synthesis", summary: `dossier incident: ${entity}`, payload: { path: r.path, incident } }).catch(() => {});
+          return ctx.textResponse(JSON.stringify(r, null, 2));
+        }
+        case "set_state": {
+          if (!entity || !state) return ctx.textResponse("manage_dossier set_state requires `entity` and `state`");
+          const r = await setCurrentState(ctx.notesPath, entity, state);
+          if (!r) return ctx.textResponse(`no dossier for entity: ${entity} (run action:init first)`);
+          await ctx.sessions.recordNotesTouched([r.path]).catch(() => {});
+          return ctx.textResponse(JSON.stringify(r, null, 2));
+        }
+        case "get": {
+          if (!entity) return ctx.textResponse("manage_dossier get requires `entity`");
+          const rel = await resolveDossierPath(ctx.notesPath, entity);
+          if (!rel) return ctx.textResponse(`no dossier for entity: ${entity}`);
+          const content = await readFile(join(ctx.notesPath, rel), "utf-8");
+          return ctx.textResponse(JSON.stringify({ path: rel, content }, null, 2));
+        }
+        case "list": {
+          await compileDossiers(ctx.notesPath);
+          const entries = await listDossiers(ctx.notesPath);
+          return ctx.textResponse(JSON.stringify(entries, null, 2));
+        }
+      }
+    }
+  );
+
+  server.tool(
+    "manage_profile",
+    "Manage the speaker profile (v1.5) — the model of how THIS human communicates (severity calibration, chronic omissions, verbosity preference, non-entity shorthand). `action`: init (scaffold profile/speaker.md with the fixed sections), get (read it), update_section (append a learned line to — or replace — one section; scaffolds first if absent). Update it when the user corrects an interpretation (\"no, when I say X I mean Y\"). One human, one profile.",
+    {
+      action: z.enum(["init", "get", "update_section"]),
+      section: z.string().optional().describe("For update_section: the section heading (e.g. 'Severity calibration', 'Shorthand & terms')."),
+      text: z.string().optional().describe("For update_section: the learned line or replacement body."),
+      mode: z.enum(["append", "replace"]).optional().describe("For update_section: append a line (default) or replace the section body."),
+    },
+    async ({ action, section, text, mode }) => {
+      switch (action) {
+        case "init": {
+          const r = await initSpeakerProfile(ctx.notesPath);
+          if (r.created) await ctx.sessions.recordNotesTouched([r.path]).catch(() => {});
+          return ctx.textResponse(JSON.stringify(r, null, 2));
+        }
+        case "get": {
+          const p = await readSpeakerProfile(ctx.notesPath);
+          if (!p) return ctx.textResponse(`no speaker profile yet (run action:init or manage_profile update_section)`);
+          const content = await readFile(join(ctx.notesPath, SPEAKER_PROFILE_PATH), "utf-8");
+          return ctx.textResponse(JSON.stringify({ path: p.path, head: p.head, content }, null, 2));
+        }
+        case "update_section": {
+          if (!section || !text) return ctx.textResponse("manage_profile update_section requires `section` and `text`");
+          const r = await updateProfileSection(ctx.notesPath, section, text, mode ?? "append");
+          await ctx.sessions.recordNotesTouched([r.path]).catch(() => {});
+          return ctx.textResponse(JSON.stringify(r, null, 2));
         }
       }
     }

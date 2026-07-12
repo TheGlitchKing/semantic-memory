@@ -998,6 +998,59 @@ lexiconCmd
     process.exit(0);
   });
 
+// --- Entity dossiers (v1.5 Phase 8) ---
+
+const dossierCmd = program.command("dossier").description("Manage entity dossiers — per-component living notes (purpose / failure modes / knobs / incident log / current state).");
+
+dossierCmd
+  .command("init <entity>")
+  .description("Scaffold a dossier for an entity (no-op if one already exists). Optionally seed aliases and provenance.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .option("--alias <phrase...>", "Human phrase(s) for this entity — fed to the lexicon compiler")
+  .option("--seeded-from <ref>", "Provenance of the scaffold (e.g. a babel-fish project-map entry)")
+  .action(async (entity: string, opts) => {
+    const { initDossier } = await import("../core/dossier.js");
+    const r = await initDossier(resolve(opts.notes), entity, { aliases: opts.alias, seeded_from: opts.seededFrom });
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(0);
+  });
+
+dossierCmd
+  .command("list")
+  .description("List all dossiers with their entity, aliases, and current state.")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { listDossiers } = await import("../core/dossier.js");
+    console.log(JSON.stringify(await listDossiers(resolve(opts.notes)), null, 2));
+    process.exit(0);
+  });
+
+// --- Speaker profile (v1.5 Phase 11) ---
+
+const profileCmd = program.command("profile").description("Manage the speaker profile — how THIS human communicates (severity calibration, chronic omissions, verbosity, shorthand).");
+
+profileCmd
+  .command("init")
+  .description("Scaffold profile/speaker.md with the fixed sections (no-op if it exists).")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { initSpeakerProfile } = await import("../core/profile.js");
+    const r = await initSpeakerProfile(resolve(opts.notes));
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(0);
+  });
+
+profileCmd
+  .command("show")
+  .description("Print the speaker profile's injection head (the capped, placeholder-stripped view).")
+  .requiredOption("--notes <path>", "Path to markdown notes directory")
+  .action(async (opts) => {
+    const { readSpeakerProfile } = await import("../core/profile.js");
+    const p = await readSpeakerProfile(resolve(opts.notes));
+    console.log(p ? p.head || "(profile is empty — only placeholders)" : "(no speaker profile — run `profile init`)");
+    process.exit(0);
+  });
+
 // --- Selection-logging telemetry introspection (v1.3.1) ---
 
 program

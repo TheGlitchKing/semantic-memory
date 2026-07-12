@@ -37,6 +37,18 @@ function structuralSearchResult<T extends { score?: number }>(r: T) {
   return { ...rest, hasScore: typeof score === "number" };
 }
 
+/**
+ * The stable base shape of a search result. `decay` (v1.3) and `usage` (v1.5) are
+ * data-CONDITIONAL enrichments — they appear only when a note is actually decayed
+ * or has accumulated citations, which in this shared-vault suite depends on what
+ * earlier tests read. Drop them here so the shape snapshot stays deterministic;
+ * their presence is asserted by the dedicated decay / usage-boost integration tests.
+ */
+const CONDITIONAL_KEYS = new Set(["decay", "usage"]);
+function baseShape(keys: string[]): string[] {
+  return keys.filter((k) => !CONDITIONAL_KEYS.has(k)).sort();
+}
+
 describe("Regression: MCP tool outputs (golden snapshots)", () => {
   let client: Client;
   let tempDir: string;
@@ -232,7 +244,7 @@ describe("Regression: MCP tool outputs (golden snapshots)", () => {
       expect(Array.isArray(parsed)).toBe(true);
       expect(parsed.length).toBeGreaterThan(0);
       // Snapshot the shape of one result (without the exact score)
-      const firstShape = Object.keys(parsed[0]).sort();
+      const firstShape = baseShape(Object.keys(parsed[0]));
       expect(firstShape).toMatchSnapshot();
       // Confirm every result has score + path
       for (const r of parsed) {
@@ -271,7 +283,7 @@ describe("Regression: MCP tool outputs (golden snapshots)", () => {
       const parsed = JSON.parse((result.content as any)[0].text);
       expect(Array.isArray(parsed)).toBe(true);
       expect(parsed.length).toBeGreaterThan(0);
-      const firstShape = Object.keys(parsed[0]).sort();
+      const firstShape = baseShape(Object.keys(parsed[0]));
       expect(firstShape).toMatchSnapshot();
     });
   });
@@ -285,7 +297,7 @@ describe("Regression: MCP tool outputs (golden snapshots)", () => {
       const parsed = JSON.parse((result.content as any)[0].text);
       expect(Array.isArray(parsed)).toBe(true);
       expect(parsed.length).toBeGreaterThan(0);
-      const firstShape = Object.keys(parsed[0]).sort();
+      const firstShape = baseShape(Object.keys(parsed[0]));
       expect(firstShape).toMatchSnapshot();
     });
   });

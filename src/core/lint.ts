@@ -20,6 +20,7 @@ export interface LintReport {
     code_symbols: LintFinding[];
     decay_candidates: LintFinding[];
     alias_conflicts: LintFinding[];
+    decoys: LintFinding[];
   };
   counts: {
     errors: number;
@@ -57,6 +58,14 @@ export async function lintVault(
      * no-op when the vault has no lexicon.
      */
     checkAliasConflicts?: boolean;
+    /**
+     * When true, run the decoys check: flag notes that were retrieved often (per
+     * the selection log) but NEVER cited in an answer. Surfaced for a human to
+     * judge — a decoy might be genuine noise OR a note the answers were wrong to
+     * skip; usage-feedback ranking (v1.5) never auto-down-ranks on this ambiguous
+     * signal (decision Q5). Opt-in; a no-op with no selection log.
+     */
+    checkDecoys?: boolean;
   } = {}
 ): Promise<LintReport> {
   const schema = opts.schemaOverride ?? (await loadSchema(notesPath));
@@ -106,6 +115,10 @@ export async function lintVault(
     }
   }
 
+  if (opts.checkDecoys) {
+    findings.push(...(await findDecoys(notesPath, rawByPath)));
+  }
+
   const byRule = {
     schema_violations: findings.filter((f) => f.rule === "schema_violations"),
     missing_provenance: findings.filter((f) => f.rule === "missing_provenance"),
@@ -114,6 +127,7 @@ export async function lintVault(
     code_symbols: findings.filter((f) => f.rule === "code_symbols"),
     decay_candidates: findings.filter((f) => f.rule === "decay_candidates"),
     alias_conflicts: findings.filter((f) => f.rule === "alias_conflicts"),
+    decoys: findings.filter((f) => f.rule === "decoys"),
   };
   const errors = findings.filter((f) => f.severity === "error").length;
   const warnings = findings.filter((f) => f.severity === "warn").length;
@@ -284,6 +298,45 @@ async function findDecayCandidates(
     }
   }
   // Most-retrieved first — the ones worth re-verifying soonest.
+  findings.sort((a, b) => (retrieved.get(b.path) ?? 0) - (retrieved.get(a.path) ?? 0));
+  return findings;
+}
+
+/** A note must be retrieved at least this many times before "never cited" is signal. */
+const DECOY_MIN_RETRIEVALS = 3;
+
+/**
+ * Decoys (v1.5 Phase 9): notes retrieved ≥ DECOY_MIN_RETRIEVALS times that were
+ * NEVER cited. Surfaced only — usage-feedback ranking never auto-down-ranks on
+ * this ambiguous signal (a decoy might be genuine noise, or a note the answers
+ * were wrong to skip). A human decides; the lint just points.
+ */
+async function findDecoys(notesPath: string, rawByPath: Map<string, string>): Promise<LintFinding[]> {
+  const events = await readSelectionLog(notesPath);
+  if (events.length === 0) return [];
+
+  const retrieved = new Map<string, number>();
+  const cited = new Set<string>();
+  for (const e of events) {
+    if (e.kind === "search") {
+      for (const r of e.results) retrieved.set(r.path, (retrieved.get(r.path) ?? 0) + 1);
+    } else if (e.kind === "selection") {
+      cited.add(e.note_path);
+    }
+  }
+
+  const findings: LintFinding[] = [];
+  for (const [rel, count] of retrieved) {
+    if (count < DECOY_MIN_RETRIEVALS) continue;
+    if (cited.has(rel)) continue;
+    if (!rawByPath.has(rel)) continue; // retrieved path no longer in the vault — skip
+    findings.push({
+      path: rel,
+      rule: "decoys",
+      severity: "warn",
+      message: `retrieved ${count}× but never cited — decoy noise, or a note answers wrongly skip? (surfaced, not auto-down-ranked)`,
+    });
+  }
   findings.sort((a, b) => (retrieved.get(b.path) ?? 0) - (retrieved.get(a.path) ?? 0));
   return findings;
 }

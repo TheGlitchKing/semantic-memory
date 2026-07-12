@@ -40,8 +40,9 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
         );
       }
       const queryEmbed = await ctx.embedder.embed(query);
+      await ctx.refreshUsageBoost();
       let results = vectorIndex.search(queryEmbed, limit * 3);
-      results = results.map((r) => ctx.applyPathClass(ctx.applyDecay({ ...r, score: ctx.applyPriorityBoost(r.score, r.path) })));
+      results = results.map((r) => ctx.applyUsageBoost(ctx.applyPathClass(ctx.applyDecay({ ...r, score: ctx.applyPriorityBoost(r.score, r.path) }))));
       results.sort((a, b) => b.score - a.score);
       results = ctx.applyDateFilter(results, modifiedAfter, modifiedBefore);
       const docByPath = ctx.getDocByPath();
@@ -121,16 +122,19 @@ export function registerSearchTools(server: McpServer, ctx: ServerContext): void
       }
 
       const queryEmbed = await ctx.embedder.embed(query);
+      await ctx.refreshUsageBoost();
       const semanticResults = vectorIndex.search(queryEmbed, limit * 3);
       const graphResults = ctx.graph.searchGraph(query, 2);
       const graphPaths = new Set(graphResults.map((r) => r.path));
 
       let hybrid = semanticResults.map((r) =>
-        ctx.applyPathClass(
-          ctx.applyDecay({
-            ...r,
-            score: ctx.applyPriorityBoost(graphPaths.has(r.path) ? r.score * 1.3 : r.score, r.path),
-          })
+        ctx.applyUsageBoost(
+          ctx.applyPathClass(
+            ctx.applyDecay({
+              ...r,
+              score: ctx.applyPriorityBoost(graphPaths.has(r.path) ? r.score * 1.3 : r.score, r.path),
+            })
+          )
         )
       );
       hybrid.sort((a, b) => b.score - a.score);

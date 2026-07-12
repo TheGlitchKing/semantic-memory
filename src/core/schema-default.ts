@@ -51,6 +51,14 @@ types:
     description: Learned human→artifact vocabulary entry (v1.4 lexicon). Maps the human's phrasing to a concrete path/symbol.
     required: [canonical]
 
+  dossier:
+    description: Entity-centric living note (v1.5). One per critical component — purpose, failure modes, knobs, incident log, current state. Accretes in place.
+    required: [title, status, entity]
+
+  profile:
+    description: Speaker profile (v1.5). Models how THIS human communicates — severity calibration, chronic omissions, verbosity, shorthand. One human, one profile.
+    required: [title, status]
+
 # Severity values for gotcha type.
 severity_enum: [low, medium, high, critical]
 
@@ -93,6 +101,17 @@ path_class:
   rules:
     - glob: "archive/**"
       multiplier: 0.3
+
+# Usage-feedback ranking (v1.5). Boosts notes that get CITED after retrieval (per
+# the local selection log) so load-bearing knowledge floats up. Bounded by cap to
+# stop a feedback runaway; composes multiplicatively with decay + path_class +
+# load_priority. A no-op until the selection log has citations. The complementary
+# signal (retrieved-but-never-cited "decoys") is surfaced by lint_vault, NEVER
+# auto-down-ranked. Set enabled: false for byte-identical pre-v1.5 ranking.
+usage_boost:
+  enabled: true
+  cap: 1.5            # max multiplier a note can earn from citations
+  per_citation: 0.1   # multiplier += per_citation × citation_count, then capped
 
 # Token-frugal tool surface (v1.4). When enabled, the server registers a reduced
 # tool set in modes that don't need the full surface (outage-silence → search/read

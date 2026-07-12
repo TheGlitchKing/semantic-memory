@@ -5,9 +5,9 @@ domains: [reference]
 audience: [developers]
 tags: [cli, commands, flags, reference]
 status: active
-last_updated: '2026-07-10'
-version: '1.4.0'
-purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace), v1.3.1 selection-stats telemetry introspection, and the v1.4.0 lexicon subcommand group.
+last_updated: '2026-07-11'
+version: '1.5.0'
+purpose: Every semantic-memory subcommand + flags + env vars + exit codes. Covers v1.1 skills tree, v1.2 migrate-state, v1.3 confidence-decay (healthcheck --fix, decay-config, decay-trace), v1.3.1 selection-stats telemetry introspection, the v1.4.0 lexicon subcommand group, and the v1.5.0 dossier + profile subcommand groups.
 load_priority: 9
 ---
 
@@ -34,6 +34,8 @@ Binary: `node node_modules/@theglitchking/semantic-memory/bin/semantic-memory` (
 | `decay-trace` (v1.3+) | Info | Print the decay calculation for one note as JSON |
 | `selection-stats` (v1.3.1+) | Info | Print selection-log telemetry stats (searches, selections, most/never-cited notes) |
 | `lexicon <action>` (v1.4+) | Maintenance | Manage the learned human→artifact lexicon (list/compile/add) |
+| `dossier <action>` (v1.5+) | Maintenance | Manage entity dossiers — per-component living notes (init/list) |
+| `profile <action>` (v1.5+) | Maintenance | Manage the speaker profile — how this human communicates (init/show) |
 | `update` / `policy` | Plugin runtime | Inherited from `@theglitchking/claude-plugin-runtime` |
 
 All subcommands accept `--help`.
@@ -51,7 +53,7 @@ semantic-memory --notes <path> [--reindex] [--stats] [--wait-for-ready] [--read-
 - `--reindex` — force full reindex and exit.
 - `--stats` — print note/chunk/wikilink/tag counts and exit.
 - `--wait-for-ready` — block until index fully built (default: lazy; search tools return "Indexing in progress" until ready).
-- `--read-only` — suppress write tools. Read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2) — unchanged in v1.3/v1.4 since `verify_note` and `manage_lexicon` are write-gated. Write-mode exposes 42 (v1.4+; was 41 in v1.3, 40 in v1.2).
+- `--read-only` — suppress write tools. Read-only mode exposes 21 tools (search × 4, read × 3, get_frontmatter, log × 2, lint × 5, graph × 4, system × 2) — unchanged in v1.3/v1.4/v1.5 since `verify_note`, `manage_lexicon`, `manage_dossier`, and `manage_profile` are all write-gated. Write-mode exposes 44 (v1.5+; was 42 in v1.4, 41 in v1.3, 40 in v1.2).
 - `--model <name>` — override the embedding model (default: `all-MiniLM-L6-v2`). Switching models invalidates the existing index — startup detects mismatch and forces a reindex.
 - `--workers <n>` — number of worker threads for parallel embedding.
 - `--batch-size <n>` — batch size for embedding requests.
@@ -109,7 +111,7 @@ semantic-memory tools          # list all MCP tools by category
 semantic-memory tools <name>   # show args + examples for one tool
 ```
 
-`tools` lists 42 tools at v1.4.0 (41 at v1.3.0, 40 at v1.2.0, was 33 at v0.2.x).
+`tools` lists 44 tools at v1.5.0 (42 at v1.4.0, 41 at v1.3.0, 40 at v1.2.0, was 33 at v0.2.x).
 
 ---
 
@@ -351,6 +353,62 @@ semantic-memory lexicon add <canonical> <phrases...> --notes <path> [--authored]
 
 ---
 
+## `dossier` (v1.5+) — manage entity dossiers
+
+Subcommand group for entity dossiers — per-component living notes that back the `manage_dossier` MCP tool (see [mcp-tools-reference.md](./mcp-tools-reference.md)). CLI covers scaffolding and listing; incident/state accretion is MCP-only (`manage_dossier` actions `append_incident`/`set_state`).
+
+### `dossier init`
+
+```bash
+semantic-memory dossier init <entity> --notes <path> [--alias <phrase...>] [--seeded-from <ref>]
+```
+
+- `<entity>` — the canonical entity name to scaffold a dossier for.
+- `--alias <phrase...>` — repeatable; human phrase(s) for this entity, fed to the lexicon compiler for query expansion.
+- `--seeded-from <ref>` — provenance of the scaffold (e.g. a babel-fish project-map entry). Fail-open — a missing reference never blocks scaffolding.
+
+No-op (returns the existing entry) if a dossier already exists for that entity or one of its aliases.
+
+**Output:** JSON `{ path, created, entity }`.
+
+### `dossier list`
+
+```bash
+semantic-memory dossier list --notes <path>
+```
+
+Lists all dossiers: entity, aliases, resolved path, purpose head, current state.
+
+**See:** [dossiers-guide.md](../operational/dossiers-guide.md) for the full operating model, [mcp-tools-reference.md](./mcp-tools-reference.md) for the equivalent `manage_dossier` MCP tool.
+
+---
+
+## `profile` (v1.5+) — manage the speaker profile
+
+Subcommand group for the speaker profile — the singleton note modeling how THIS human communicates, that backs the `manage_profile` MCP tool (see [mcp-tools-reference.md](./mcp-tools-reference.md)). CLI covers scaffolding and reading; section updates are MCP-only (`manage_profile` action `update_section`).
+
+### `profile init`
+
+```bash
+semantic-memory profile init --notes <path>
+```
+
+Scaffolds `profile/speaker.md` with the fixed Severity calibration / Chronic omissions / Verbosity preference / Shorthand & terms sections. No-op if it already exists.
+
+**Output:** JSON `{ path, created }`.
+
+### `profile show`
+
+```bash
+semantic-memory profile show --notes <path>
+```
+
+Prints the speaker profile's injection head — the capped, placeholder-stripped view (real learned content only). Prints `(profile is empty — only placeholders)` when nothing has been learned yet, or `(no speaker profile — run \`profile init\`)` if the note doesn't exist.
+
+**See:** [session-paging-guide.md](../operational/session-paging-guide.md) for the full operating model, [mcp-tools-reference.md](./mcp-tools-reference.md) for the equivalent `manage_profile` MCP tool.
+
+---
+
 ## Plugin runtime commands
 
 `update`, `policy`, and related commands come from `@theglitchking/claude-plugin-runtime`. See that package's README for the auto-update policy contract.
@@ -386,6 +444,6 @@ The env var names retain `SIDEKICK_*` prefix for backwards compat. Don't break u
 ## See also
 
 - [hooks-reference.md](./hooks-reference.md) — what shells out to which CLI subcommand
-- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (42 tools)
+- [mcp-tools-reference.md](./mcp-tools-reference.md) — the MCP tool surface (44 tools)
 - [drift-detection.md](../operational/drift-detection.md) — `healthcheck` deep dive
 - [state-migration.md](../operational/state-migration.md) — `migrate-state` deep dive

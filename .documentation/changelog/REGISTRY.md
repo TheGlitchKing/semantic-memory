@@ -5,21 +5,21 @@ domains: [changelog]
 audience: [developers]
 tags: [registry, changelog]
 status: active
-last_updated: '2026-07-10'
-version: '1.4.0'
+last_updated: '2026-07-11'
+version: '1.5.0'
 purpose: Quick reference for changelog documentation
 load_priority: 5
 ---
 
 # Changelog Registry
 
-> Per-version change logs covering v0.x phased build through v1.4.0.
+> Per-version change logs covering v0.x phased build through v1.5.0.
 
 ## At a Glance
 
 | Metric | Value |
 |--------|-------|
-| Documents | 11 |
+| Documents | 12 |
 | Domain | changelog |
 
 ## Documents
@@ -35,6 +35,7 @@ load_priority: 5
 | [`v1-3-confidence-decay.md`](./v1-3-confidence-decay.md) | reference | 1.3.0 | v1.3.0: age-aware confidence-decay ranking, verify_note, evergreen, decay block, decay-config/decay-trace CLI. |
 | [`v1-3-1-telemetry.md`](./v1-3-1-telemetry.md) | reference | 1.3.1 | v1.3.1: local selection-logging telemetry (selection.jsonl), decay_candidates lint, selection-stats CLI, contract version-freeze fix. |
 | [`v1-4-0-resident-bridge.md`](./v1-4-0-resident-bridge.md) | reference | 1.4.0 | v1.4.0: resident-expert bridge — lexicon/manage_lexicon, alias capture, symptom-keyed indexing, query expansion, path-class, injection hygiene, section reads, conditional tools, eval harness. |
+| [`v1-5-0-expert-character.md`](./v1-5-0-expert-character.md) | reference | 1.5.0 | v1.5.0: expert-character layer — entity dossiers/manage_dossier + two-hop retrieval, usage-feedback ranking/usage_boost + decoys lint, session paging (Stop digest-as-proposal + SessionStart curated digest), speaker profile/manage_profile. Tool surface 42→44. |
 
 ### v0.x — semantic-sidekick phased build
 
@@ -47,4 +48,4 @@ load_priority: 5
 
 ## Keywords
 
-`changelog` `phases` `history` `release-notes` `v1.x` `rebrand` `brain-absorption` `state-consolidation`
+`changelog` `phases` `history` `release-notes` `v1.x` `rebrand` `brain-absorption` `state-consolidation` `expert-character` `dossier` `usage-feedback`
