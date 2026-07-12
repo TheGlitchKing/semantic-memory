@@ -51,6 +51,10 @@ types:
     description: Learned human→artifact vocabulary entry (v1.4 lexicon). Maps the human's phrasing to a concrete path/symbol.
     required: [canonical]
 
+  dossier:
+    description: Entity-centric living note (v1.5). One per critical component — purpose, failure modes, knobs, incident log, current state. Accretes in place.
+    required: [title, status, entity]
+
 # Severity values for gotcha type.
 severity_enum: [low, medium, high, critical]
 

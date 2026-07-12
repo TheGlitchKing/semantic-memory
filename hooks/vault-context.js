@@ -216,6 +216,55 @@ export function expandQueryViaLexicon(projectRoot, query) {
   return canonicals.length ? `${query} ${canonicals.join(" ")}` : query;
 }
 
+// --- Two-hop retrieval (v1.5 Phase 8): utterance → entity → dossier ---
+// When the prompt names a dossier entity (or one of its aliases), inject the
+// dossier head — Purpose + Current state — FIRST, ahead of semantic hits. This is
+// the "resident expert pulls the component's file" move: entity-first, not file-first.
+// Deterministic table lookup against the derived dossier-cache.json — no LLM, no spawn.
+
+function readDossierCache(projectRoot) {
+  try {
+    const cachePath = join(projectRoot, ".claude", ".semantic-memory", "dossier-cache.json");
+    if (!existsSync(cachePath)) return [];
+    const data = JSON.parse(readFileSync(cachePath, "utf8"));
+    return Array.isArray(data?.dossiers) ? data.dossiers : [];
+  } catch {
+    return [];
+  }
+}
+
+export function resolveDossierForPrompt(projectRoot, query) {
+  const dossiers = readDossierCache(projectRoot);
+  if (dossiers.length === 0) return null;
+  const nq = normalizePhrase(query);
+  let best = null;
+  let bestLen = 0;
+  for (const d of dossiers) {
+    const keys = [d.entity, ...(Array.isArray(d.aliases) ? d.aliases : [])]
+      .map(normalizePhrase)
+      .filter(Boolean);
+    for (const k of keys) {
+      if (nq.includes(k) && k.length > bestLen) {
+        best = d;
+        bestLen = k.length;
+      }
+    }
+  }
+  return best;
+}
+
+export function formatDossierHead(dossier) {
+  if (!dossier || !dossier.path) return "";
+  const lines = [];
+  lines.push(`<vault-dossier entity="${escapeAttr(dossier.entity || "")}" path="${escapeAttr(dossier.path)}">`);
+  lines.push(`This utterance names a tracked entity. Its dossier is the first place to look:`);
+  if (dossier.purpose) lines.push(`- purpose: ${String(dossier.purpose).replace(/\s+/g, " ").slice(0, 240)}`);
+  if (dossier.current_state) lines.push(`- current state: ${String(dossier.current_state).replace(/\s+/g, " ").slice(0, 240)}`);
+  lines.push(`Read \`${dossier.path}\` (its Incident log is the fix history) before answering about ${dossier.entity}.`);
+  lines.push(`</vault-dossier>`);
+  return lines.join("\n");
+}
+
 function escapeAttr(s) {
   return String(s).replace(/["<>&]/g, (c) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 }
@@ -728,11 +777,16 @@ async function handlePrompt(projectRoot, vaultPath, cliBin, input) {
   if (cue) {
     addCapturePending(projectRoot, prompt, cue);
   }
+  // Two-hop: if the utterance names a tracked entity, lead with its dossier head.
+  const dossier = resolveDossierForPrompt(projectRoot, prompt);
+  const dossierHead = dossier ? formatDossierHead(dossier) : "";
   if (!hits || hits.length === 0) {
-    emit("UserPromptSubmit", "");
+    // Even with no semantic hits, a resolved dossier is worth injecting.
+    emit("UserPromptSubmit", dossierHead);
     return;
   }
-  const block = formatContextBlock("prompt", prompt.slice(0, 120), hits);
+  const searchBlock = formatContextBlock("prompt", prompt.slice(0, 120), hits);
+  const block = [dossierHead, searchBlock].filter(Boolean).join("\n");
   emit("UserPromptSubmit", block);
 }
 

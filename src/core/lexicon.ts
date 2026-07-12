@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
 import { deriveSessionDir } from "./session.js";
+import { listDossiers } from "./dossier.js";
 
 /**
  * Lexicon corpus (v1.4 Phase 3) — the learned human→artifact vocabulary.
@@ -66,6 +67,27 @@ export async function compileLexicon(vaultPath: string): Promise<AliasEntry[]> {
     } catch {
       /* skip unreadable note */
     }
+  }
+  // Fold in dossier aliases (v1.5 Phase 8): a dossier's `aliases:` are the human's
+  // phrases for that entity, so they become query-expansion bindings pointing at the
+  // dossier note. Authored, not learned — the human named the entity deliberately.
+  // A lexicon note for the same canonical wins (it carries real evidence_count).
+  try {
+    const dossiers = await listDossiers(vaultPath);
+    for (const d of dossiers) {
+      if (d.aliases.length === 0) continue;
+      if (entries.some((e) => e.canonical === d.path)) continue;
+      entries.push({
+        canonical: d.path,
+        phrases: d.aliases,
+        confidence: "high",
+        evidence_count: d.aliases.length,
+        source: "authored",
+        path: d.path,
+      });
+    }
+  } catch {
+    /* dossiers optional — lexicon compiles fine without them */
   }
   try {
     const dir = deriveSessionDir(vaultPath);

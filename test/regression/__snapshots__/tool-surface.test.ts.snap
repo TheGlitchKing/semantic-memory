@@ -22,6 +22,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "list_notes",
   "log_event",
   "log_query",
+  "manage_dossier",
   "manage_lexicon",
   "manage_tags",
   "move_note",
@@ -597,6 +598,57 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "log_query",
+  },
+  {
+    "description": "Manage entity dossiers (v1.5) — the per-component living notes that organize memory by entity instead of by file. \`action\`: init (scaffold a dossier for an entity with the fixed Purpose/Failure modes/Knobs/Incident log/Current state sections), append_incident (append a dated line to the Incident log — accretion, never a new note), set_state (replace the Current state one-liner), get (read a dossier by entity/alias/path), list (all dossiers with their current state). Knowledge about a critical component accretes IN PLACE here.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "init",
+            "append_incident",
+            "set_state",
+            "get",
+            "list",
+          ],
+          "type": "string",
+        },
+        "aliases": {
+          "description": "For init: the human's phrases for this entity (fed to the lexicon compiler for query expansion).",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "entity": {
+          "description": "For init/append_incident/set_state/get: the entity name, one of its aliases, or a dossier path.",
+          "type": "string",
+        },
+        "incident": {
+          "description": "For append_incident: what happened → cause → fix, in one line. Dated automatically.",
+          "type": "string",
+        },
+        "purpose": {
+          "description": "For init: seed the Purpose section instead of the placeholder.",
+          "type": "string",
+        },
+        "seeded_from": {
+          "description": "For init: provenance of the scaffold (e.g. a babel-fish project-map entry).",
+          "type": "string",
+        },
+        "state": {
+          "description": "For set_state: the single freshest sentence about where the entity stands.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "action",
+      ],
+      "type": "object",
+    },
+    "name": "manage_dossier",
   },
   {
     "description": "Manage the learned human→artifact lexicon (v1.4). \`action\`: add (upsert a canonical target + the human phrases that refer to it; bumps evidence_count on repeats), lookup (expand a query via matching alias phrases), list (all aliases), remove (by canonical), compile (rebuild the derived cache). The lexicon maps how THIS human names things to concrete paths/symbols.",
