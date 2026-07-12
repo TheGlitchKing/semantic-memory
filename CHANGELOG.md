@@ -2,6 +2,23 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.5.1] - 2026-07-12 — Dependency audit hardening (supply chain)
+
+Patch release: clears the transitive `npm audit` findings surfaced after upgrading from the 1.2.x line, with **no runtime or API change**. Every advisory was unreachable in practice — this is a local **stdio** MCP server plus hook scripts processing the user's **own** files: the `hono`/`express-rate-limit`/`ip-address`/`qs`/`fast-uri` cluster is the MCP SDK's HTTP-server transport, which this plugin never instantiates (stdio only); `protobufjs`/`@xmldom/xmldom` are the local embedding runtime; `js-yaml`/`brace-expansion` parse your own notes/globs.
+
+### Changed
+
+- **`overrides` block pins patched, SAME-MAJOR transitive versions** — `protobufjs 7.6.5`, `@protobufjs/utf8 1.1.2`, `@xmldom/xmldom 0.9.10`, `brace-expansion 5.0.7`, `qs 6.15.3`, `ip-address 10.2.0`, `express-rate-limit 8.5.2`, `hono 4.12.29`, `@hono/node-server 1.19.14`. No breaking bumps. `js-yaml` (3.15.0) and `fast-uri` (3.1.3) resolve to their patched in-range versions on a fresh install — no override needed.
+- **Result: `npm audit --omit=dev` (the production tree consumers install) = 0 vulnerabilities.** The one remaining full-audit item (`esbuild`, low) is a dev-only tsup/vitest tool whose advisory is a *Windows dev server* file-read — it never ships in the package (`files` excludes it) and never runs in a consumer.
+
+### Notes for consumers
+
+npm ignores a **dependency's** `overrides` in downstream installs — only the *root* project's overrides apply. So a project that gates CI on `npm audit` after installing this plugin should either run `npm audit fix` (all fixes are in-range, non-breaking, no `--force`) or mirror the `overrides` block above. `js-yaml` and `fast-uri` are deliberately **not** force-bumped to their next majors: doing so breaks `gray-matter` frontmatter parsing and `ajv`/MCP tool-input validation (empirically — forcing the majors failed 76 tests), and the DoS vectors require attacker-controlled input this plugin never accepts.
+
+### Tests
+
+- Full suite **418 green** with the pinned overrides; `npm run build` clean; production audit 0.
+
 ## [1.5.0] - 2026-07-11 — Expert-character layer (v1.5.0: Phases 8–11)
 
 Where v1.4.0 taught the plugin *how this human talks about the system*, v1.5.0 gives it the other two traits of a resident expert: it organizes memory by **component** (not by file) and **learns from its own usage**. Tool surface 42 → 44 (`manage_dossier`, `manage_profile`; read-only unchanged at 21). Additive throughout; `usage_boost.enabled: false` reproduces byte-identical pre-v1.5 ranking.
