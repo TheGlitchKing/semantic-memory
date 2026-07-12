@@ -11,7 +11,7 @@
 // Fails open: any error logs to stderr and emits an empty additionalContext.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, basename, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -265,6 +265,98 @@ export function formatDossierHead(dossier) {
   return lines.join("\n");
 }
 
+// --- Session paging (v1.5 Phase 10): memory as the context window's swap space ---
+// SessionStart pages IN a curated digest — latest session digest, active task,
+// dossier current-states, mode — instead of a broad whole-vault semantic sweep.
+// Fewer tokens, more signal. Falls back to search when there's nothing to page in.
+
+/** Newest sessions/*.md digest note: its title + first content paragraph. */
+function readLatestSessionDigest(vaultPath) {
+  try {
+    const dir = join(vaultPath, "sessions");
+    if (!existsSync(dir)) return null;
+    const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
+    if (files.length === 0) return null;
+    let newest = null;
+    let newestMs = -1;
+    for (const f of files) {
+      const p = join(dir, f);
+      try {
+        const ms = statSync(p).mtimeMs;
+        if (ms > newestMs) { newestMs = ms; newest = p; }
+      } catch { /* skip */ }
+    }
+    if (!newest) return null;
+    const raw = readFileSync(newest, "utf8");
+    const body = raw.replace(/^---[\s\S]*?---\s*/, ""); // strip frontmatter
+    const titleMatch = body.match(/^#\s+(.+)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : basename(newest).replace(/\.md$/, "");
+    const para = body
+      .replace(/^#.*$/m, "")
+      .split(/\n\s*\n/)
+      .map((s) => s.trim())
+      .find((s) => s && !s.startsWith("#"));
+    return {
+      path: `sessions/${basename(newest)}`,
+      title,
+      head: para ? para.replace(/\s+/g, " ").slice(0, 300) : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Dossier current-state one-liners from the derived cache (capped). */
+function readDossierStates(projectRoot, cap = 6) {
+  const dossiers = readDossierCache(projectRoot);
+  return dossiers
+    .filter((d) => d && d.current_state)
+    .slice(0, cap)
+    .map((d) => ({ entity: d.entity, path: d.path, state: String(d.current_state).replace(/\s+/g, " ").slice(0, 160) }));
+}
+
+/**
+ * Build the SessionStart curated digest block. Returns "" when there's nothing
+ * durable to page in (no digest note, no dossier states, no active task) — the
+ * caller then falls back to the broad semantic search.
+ */
+function buildSessionStartDigest(projectRoot, vaultPath) {
+  const digest = readLatestSessionDigest(vaultPath);
+  const states = readDossierStates(projectRoot);
+  const session = readActiveSession(projectRoot);
+  const mode = readMode(projectRoot);
+  if (!digest && states.length === 0 && !session) return "";
+
+  const lines = [`<vault-session-digest mode="${escapeAttr(mode)}">`];
+  lines.push(`Paged in from the vault (curated — not a broad search):`);
+  if (session) {
+    lines.push(`- active task: ${String(session.task || "(unnamed)").slice(0, 160)} (session ${session.id})`);
+  }
+  if (digest) {
+    lines.push(`- last session digest \`${digest.path}\`: ${digest.head || digest.title}`);
+  }
+  if (states.length > 0) {
+    lines.push(`- tracked entities (current state):`);
+    for (const s of states) lines.push(`    · ${s.entity} — ${s.state}  \`${s.path}\``);
+  }
+  lines.push(`Read the digest or a dossier before re-deriving prior context.`);
+  lines.push(`</vault-session-digest>`);
+  return lines.join("\n");
+}
+
+/**
+ * Stop-time session-digest instruction: draft a durable digest of this session's
+ * decisions/resolutions/task-state as a PROPOSAL (decision Q10 — automatic draft,
+ * human-reviewable, graduated via synthesize_promote). Appended to the session-close
+ * prompt so a formal session boundary always offers to file its memory.
+ */
+function formatSessionDigestPrompt(session) {
+  return [
+    "",
+    `After finishing, page this session's durable state to the vault: call \`mcp__semantic-vault__synthesize_note\` with \`from_session: true\`, \`proposal: true\`, \`proposal_subdir: "sessions"\`, and \`suggested_path: "sessions/${session.id}.md"\` — capturing decisions made, resolutions (symptom→cause→fix), and remaining task state. It files as a reviewable proposal; \`synthesize_promote\` graduates it if worth keeping. This is memory paging, not busywork: next session pages it back in instead of re-deriving.`,
+  ].join("\n");
+}
+
 function escapeAttr(s) {
   return String(s).replace(/["<>&]/g, (c) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 }
@@ -480,16 +572,25 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
     logMaybeModeChange(cliBin, vaultPath, priorMode, "vault-first");
   }
 
-  const query = sessionSeedQuery(projectRoot);
-  debug(`sessionstart seed query: "${query}"`);
-  const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "6", query], 30_000);
+  // Phase 10: prefer a curated digest (last session digest + active task + dossier
+  // current-states) over a broad whole-vault semantic sweep. Fewer tokens, more
+  // signal. Only fall back to the seeded search when there's nothing to page in.
+  const digestBlock = buildSessionStartDigest(projectRoot, vaultPath);
+  let searchBlock = "";
+  if (!digestBlock) {
+    const query = sessionSeedQuery(projectRoot);
+    debug(`sessionstart seed query: "${query}"`);
+    const hits = runSearchCli(cliBin, ["--notes", vaultPath, "--limit", "6", query], 30_000);
+    searchBlock = hits && hits.length > 0 ? formatContextBlock("sessionstart", query, hits) : "";
+  } else {
+    debug("sessionstart: paging in curated digest (skipping broad search)");
+  }
 
   // State-delta preload — 14-day window per Phase 4.5 design.
   const sinceMs = Date.now() - 14 * 24 * 60 * 60 * 1000;
   const sinceIso = new Date(sinceMs).toISOString();
   const recentEntries = queryRecentLogViaCli(cliBin, vaultPath, sinceIso, 30);
 
-  const searchBlock = hits && hits.length > 0 ? formatContextBlock("sessionstart", query, hits) : "";
   const stateBlock = formatStateDeltaBlock(sinceIso, recentEntries);
 
   // Phase 8 (drift detection): inline fast-tier check. Hard requirements: <100ms total,
@@ -500,7 +601,7 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
     return "";
   });
 
-  const parts = [driftBlock, stateBlock, searchBlock].filter(Boolean);
+  const parts = [driftBlock, stateBlock, digestBlock, searchBlock].filter(Boolean);
   emit("SessionStart", parts.join("\n\n"));
 }
 
@@ -685,6 +786,7 @@ async function handleStop(projectRoot) {
     } else {
       lines.push(`Before ending: either run \`mcp__semantic-vault__session_run\` with at least one verification command (tests/lint), or call \`mcp__semantic-vault__session_finish\` with \`verified: false\` and a \`reason\` waiving verification (e.g. doc-only edits). session_finish refuses without one of these paths.`);
     }
+    lines.push(formatSessionDigestPrompt(session));
     lines.push(`</vault-session-close>`);
     resetCapturePending(projectRoot);
     emitStop(lines.join("\n"), true);
