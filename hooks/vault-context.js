@@ -344,6 +344,36 @@ function buildSessionStartDigest(projectRoot, vaultPath) {
   return lines.join("\n");
 }
 
+// --- Speaker profile (v1.5 Phase 11): the model of THIS human ---
+// Read profile/speaker.md and inject a capped, placeholder-stripped head at
+// SessionStart, so every session starts knowing how this person communicates.
+
+function readSpeakerProfileBlock(vaultPath, maxLines = 24) {
+  try {
+    const abs = join(vaultPath, "profile", "speaker.md");
+    if (!existsSync(abs)) return "";
+    const raw = readFileSync(abs, "utf8");
+    const body = raw.replace(/^---[\s\S]*?---\s*/, "").trim();
+    const kept = [];
+    for (const line of body.split("\n")) {
+      if (/^#{1,6}\s/.test(line)) { kept.push(line.replace(/^#+\s*/, "").trim() + ":"); continue; }
+      const t = line.trim();
+      if (t === "" || /^_.*_$/.test(t)) continue; // drop placeholder prompts
+      kept.push(t);
+    }
+    // Drop trailing section labels with no content under them.
+    while (kept.length && kept[kept.length - 1].endsWith(":")) kept.pop();
+    if (kept.length === 0) return "";
+    const lines = [`<vault-speaker-profile path="profile/speaker.md">`];
+    lines.push(`How this human communicates (learned — apply, don't recite):`);
+    for (const l of kept.slice(0, maxLines)) lines.push(`  ${l}`);
+    lines.push(`</vault-speaker-profile>`);
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Stop-time session-digest instruction: draft a durable digest of this session's
  * decisions/resolutions/task-state as a PROPOSAL (decision Q10 — automatic draft,
@@ -476,6 +506,9 @@ const CAPTURE_CUES = [
   // (a/the gotcha, gotcha:, gotchas, gotcha is/was/here/with) so bare filler doesn't misfire.
   /\b(?:a|the|one|another)\s+gotcha\b|\bgotcha[:s]\b|\bgotcha (?:is|was|here|with)\b|\bworkaround\b|\bhack\b/i,
   /\bnew convention\b|\bfrom now on\b|\bgoing forward\b/i,
+  // Speaker-calibration corrections (v1.5 Phase 11): the user telling you how THEY
+  // talk — "no, when I say X I mean Y", "what I mean by X is", "I actually meant".
+  /\bwhen i say\b[\s\S]{0,40}\bi mean\b|\bwhat i mean by\b|\bi actually meant\b|\bwhen i said\b[\s\S]{0,40}\bi meant\b/i,
 ];
 
 // Cue detection must scan the user's own prose, NOT quoted machinery. Pasting
@@ -601,7 +634,9 @@ async function handleSessionStart(projectRoot, vaultPath, cliBin) {
     return "";
   });
 
-  const parts = [driftBlock, stateBlock, digestBlock, searchBlock].filter(Boolean);
+  const profileBlock = readSpeakerProfileBlock(vaultPath);
+
+  const parts = [driftBlock, profileBlock, stateBlock, digestBlock, searchBlock].filter(Boolean);
   emit("SessionStart", parts.join("\n\n"));
 }
 
@@ -842,6 +877,7 @@ async function handleStop(projectRoot) {
   }
   lines.push("");
   lines.push(`Before ending: for each still-unsynthesized item above, either call \`mcp__semantic-vault__synthesize_note\` to file it with provenance, or explicitly acknowledge that it was already captured / not worth capturing.`);
+  lines.push(`If a cue is a speaker correction (how the user talks — "when I say X I mean Y"), update the speaker profile via \`mcp__semantic-vault__manage_profile\` (action:update_section) instead of synthesize_note.`);
   lines.push(`</vault-capture-prompt>`);
   resetCapturePending(projectRoot);
   emitStop(lines.join("\n"), true);

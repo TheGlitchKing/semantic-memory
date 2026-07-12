@@ -24,6 +24,7 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
   "log_query",
   "manage_dossier",
   "manage_lexicon",
+  "manage_profile",
   "manage_tags",
   "move_note",
   "read_multiple_notes",
@@ -697,6 +698,44 @@ exports[`Regression: MCP tool surface (golden snapshots) > matches the golden to
       "type": "object",
     },
     "name": "manage_lexicon",
+  },
+  {
+    "description": "Manage the speaker profile (v1.5) — the model of how THIS human communicates (severity calibration, chronic omissions, verbosity preference, non-entity shorthand). \`action\`: init (scaffold profile/speaker.md with the fixed sections), get (read it), update_section (append a learned line to — or replace — one section; scaffolds first if absent). Update it when the user corrects an interpretation ("no, when I say X I mean Y"). One human, one profile.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "init",
+            "get",
+            "update_section",
+          ],
+          "type": "string",
+        },
+        "mode": {
+          "description": "For update_section: append a line (default) or replace the section body.",
+          "enum": [
+            "append",
+            "replace",
+          ],
+          "type": "string",
+        },
+        "section": {
+          "description": "For update_section: the section heading (e.g. 'Severity calibration', 'Shorthand & terms').",
+          "type": "string",
+        },
+        "text": {
+          "description": "For update_section: the learned line or replacement body.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "action",
+      ],
+      "type": "object",
+    },
+    "name": "manage_profile",
   },
   {
     "description": "Add, remove, list, or rename tags on a note (frontmatter and inline). Use action='rename' with \`from\` and \`to\` to rename a tag vault-wide; \`path\` is ignored in that mode.",

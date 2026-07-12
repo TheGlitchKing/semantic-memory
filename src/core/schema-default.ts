@@ -55,6 +55,10 @@ types:
     description: Entity-centric living note (v1.5). One per critical component — purpose, failure modes, knobs, incident log, current state. Accretes in place.
     required: [title, status, entity]
 
+  profile:
+    description: Speaker profile (v1.5). Models how THIS human communicates — severity calibration, chronic omissions, verbosity, shorthand. One human, one profile.
+    required: [title, status]
+
 # Severity values for gotcha type.
 severity_enum: [low, medium, high, critical]
 
