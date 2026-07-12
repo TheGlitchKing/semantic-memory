@@ -5,8 +5,8 @@ domains: [all]
 audience: [developers, admin]
 tags: [documentation, navigation, index, hewtd]
 status: active
-last_updated: '2026-07-10'
-version: '1.4.0'
+last_updated: '2026-07-11'
+version: '1.5.0'
 purpose: Root navigation hub for all semantic-memory operator documentation
 load_priority: 10
 ---
@@ -15,11 +15,11 @@ load_priority: 10
 
 > Operator's manual for `@theglitchking/semantic-memory` — the unified memory-layer plugin for Claude Code. Organized as a hewtd-style hierarchical domain structure: each domain has its own `INDEX.md` (human navigation) and `REGISTRY.md` (metadata/registry view).
 
-**Plugin version:** 1.4.0 · **Tool count:** 42 MCP tools (write mode), 21 (read-only) · **Test suite:** 371/371
+**Plugin version:** 1.5.0 · **Tool count:** 44 MCP tools (write mode), 21 (read-only) · **Test suite:** 418/418
 
 ## What's covered
 
-This documentation set covers everything from the original five-layer activation/routing/capture stack (v0.x → v1.0 substrate) through the v1.1 brain-absorption (AGENTS.md contract, hard-gated sessions, multi-agent skill bundler, drift detection), v1.2 state consolidation under `.claude/.semantic-memory/`, the v1.2.3 hygiene completion (`/healthcheck --fix`, `code_symbols` lint, fresh-install CI smoke), v1.3 confidence decay (age-aware ranking, `verify_note`, `evergreen`), v1.3.1 selection-logging telemetry (`selection.jsonl`, `decay_candidates` lint, `selection-stats`), and the v1.4.0 resident-expert bridge (learned lexicon + alias capture, symptom-keyed indexing, query expansion, path-class down-weight, injection hygiene, section reads).
+This documentation set covers everything from the original five-layer activation/routing/capture stack (v0.x → v1.0 substrate) through the v1.1 brain-absorption (AGENTS.md contract, hard-gated sessions, multi-agent skill bundler, drift detection), v1.2 state consolidation under `.claude/.semantic-memory/`, the v1.2.3 hygiene completion (`/healthcheck --fix`, `code_symbols` lint, fresh-install CI smoke), v1.3 confidence decay (age-aware ranking, `verify_note`, `evergreen`), v1.3.1 selection-logging telemetry (`selection.jsonl`, `decay_candidates` lint, `selection-stats`), the v1.4.0 resident-expert bridge (learned lexicon + alias capture, symptom-keyed indexing, query expansion, path-class down-weight, injection hygiene, section reads), and the v1.5.0 expert-character layer (entity dossiers + two-hop retrieval, usage-feedback ranking + `decoys` lint, session paging, speaker profile).
 
 If you're upgrading from v0.x or v1.0, start with the [v1.0 rebrand changelog](./changelog/v1-0-rebrand.md) and the [v1.1 brain-absorption changelog](./changelog/v1-1-brain-absorption.md).
 
@@ -29,12 +29,12 @@ If you're upgrading from v0.x or v1.0, start with the [v1.0 rebrand changelog](.
 |---|---|---|
 | **Quickstart** | [quickstart/INDEX.md](./quickstart/INDEX.md) | Install + overview — read first |
 | **Architecture** | [architecture/INDEX.md](./architecture/INDEX.md) | Five layers, injection points, MCP internals, sessions, contract, indices |
-| **Reference** | [reference/INDEX.md](./reference/INDEX.md) | All 42 MCP tools, CLI, hooks, frontmatter spec, config |
+| **Reference** | [reference/INDEX.md](./reference/INDEX.md) | All 44 MCP tools, CLI, hooks, frontmatter spec, config |
 | **Operational** | [operational/INDEX.md](./operational/INDEX.md) | Modes, sessions, capture workflows, drift detection, logs, migrate-state |
 | **Troubleshooting** | [troubleshooting/INDEX.md](./troubleshooting/INDEX.md) | Symptom / cause / fix matrix |
 | **Testing** | [testing/INDEX.md](./testing/INDEX.md) | Test suite + validation |
 | **Deployment** | [deployment/INDEX.md](./deployment/INDEX.md) | Marketplace + npm publish + offline tarball |
-| **Changelog** | [changelog/INDEX.md](./changelog/INDEX.md) | Per-version release notes (v0.x phases + v1.0/1.1/1.2) |
+| **Changelog** | [changelog/INDEX.md](./changelog/INDEX.md) | Per-version release notes (v0.x phases through v1.5) |
 | **Legacy** | [legacy/INDEX.md](./legacy/INDEX.md) | Substrate docs inherited from semantic-pages |
 
 ## Read these first

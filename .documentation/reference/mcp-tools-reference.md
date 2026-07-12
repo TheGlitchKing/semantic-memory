@@ -1,25 +1,25 @@
 ---
-title: MCP Tools Reference (42 tools)
+title: MCP Tools Reference (44 tools)
 tier: reference
 domains: [reference]
 audience: [developers]
 tags: [mcp, tools, api, reference, tools-catalog]
 status: active
-last_updated: '2026-07-10'
-version: '1.4.0'
-purpose: All 42 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, the v1.3 confidence-decay verify_note tool, the v1.3.1 decay_candidates lint check, and the v1.4.0 manage_lexicon tool plus read_note/synthesize_note/lint_vault additions.
+last_updated: '2026-07-11'
+version: '1.5.0'
+purpose: All 44 MCP tools by category with args, use-when/skip-when guidance. Includes v1.1+ contract + session tools, the v1.1 deprecation shims, the v1.3 confidence-decay verify_note tool, the v1.3.1 decay_candidates lint check, the v1.4.0 manage_lexicon tool, and the v1.5.0 manage_dossier + manage_profile tools plus the usage-feedback usage block and decoys lint check.
 load_priority: 9
 ---
 
 # MCP tools reference
 
-> 42 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode (`verify_note` and `manage_lexicon` are write-gated, so read-only mode is unchanged at 21). When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
+> 44 tools served by the `semantic-memory` MCP server over stdio (write mode); 21 in `--read-only` mode (`verify_note`, `manage_lexicon`, `manage_dossier`, and `manage_profile` are write-gated, so read-only mode is unchanged at 21). When the plugin is installed and `.mcp.json` is wired, they appear in Claude's tool list as `mcp__semantic-vault__<name>` (the entry name in `.mcp.json` controls the prefix; `semantic-vault` is the convention).
 
 Tools fall into 11 categories. Write tools are gated by the `--read-only` flag on the server; read tools are always available.
 
 ## Surface delta vs v0.x
 
-This doc is current to v1.4.0. v0.x had 33 tools. v1.1.0 added 7:
+This doc is current to v1.5.0. v0.x had 33 tools. v1.1.0 added 7:
 
 - `regenerate_contract` + `inspect_contract` (Phase 3 — AGENTS.md)
 - `synthesize_promote` (Phase 4 — proposal flow)
@@ -38,6 +38,8 @@ v1.3.0 added 1 tool: `verify_note` (confidence-decay Phase — resets a note's d
 
 v1.4.0 added 1 tool: `manage_lexicon` (resident-bridge Phase — the learned human→artifact lexicon). No deprecations in v1.4.0. v1.4.0 also extended three existing tools: `read_note` (new `section` param), `synthesize_note` (new `symptoms` param), and `lint_vault` (two new opt-in checks: `alias_conflicts`, alongside the existing `code_symbols`/`decay_candidates`).
 
+v1.5.0 added 2 tools: `manage_dossier` (Phase 8 — entity dossiers: per-component living notes) and `manage_profile` (Phase 11 — the speaker profile). No deprecations in v1.5.0. v1.5.0 also extended `lint_vault` with one more opt-in check (`decoys`, alongside `code_symbols`/`decay_candidates`/`alias_conflicts`) and added a `usage` block to decay-affected search results (`search_semantic`/`search_hybrid`), the v1.5 usage-feedback ranking signal.
+
 ---
 
 ## Search (4) — always available
@@ -48,6 +50,7 @@ Vector similarity search over chunk embeddings.
 **Use when:** conceptual/semantic queries ("authentication flows").
 **Skip when:** looking for exact strings — prefer `search_text`.
 **v1.3+ confidence decay:** results are down-weighted by time since `last_verified`. Decayed results carry a `decay: { multiplier, age_days, effective_half_life, reason }` block. See [configuration-reference.md](./configuration-reference.md#decay-vaultschemayml).
+**v1.5+ usage-feedback ranking:** results cited (via `read_note`) after a prior search earn a bounded rank boost (composes multiplicatively with decay + path_class + load_priority). Boosted results carry a `usage: { citations, multiplier }` block. See [configuration-reference.md](./configuration-reference.md#usage_boost-vaultschemayml).
 
 ### `search_text`
 BM25-ish keyword search over full note content.
@@ -64,6 +67,7 @@ Semantic + graph rerank. **The default for most queries.**
 **Args:** `{ query, limit?=10, [date/status/tier/domain filters] }`
 **Notes:** SessionStart vault-context hook calls this.
 **v1.3+ confidence decay:** same decay down-weighting and `decay` block as `search_semantic`. `search_text`/`search_graph` are unaffected — decay only applies to the two ranked/semantic tools.
+**v1.5+ usage-feedback ranking:** same `usage` block and boost behavior as `search_semantic`, applied at the same shared rank site.
 
 ## Read (3)
 
@@ -92,7 +96,7 @@ Semantic + graph rerank. **The default for most queries.**
 ### `move_note`
 **Args:** `{ from, to }`. Updates wikilinks across the vault.
 
-## Patch / Synthesis (7) — Phase 2/3 + v1.1 + v1.3 + v1.4 additions
+## Patch / Synthesis (9) — Phase 2/3 + v1.1 + v1.3 + v1.4 + v1.5 additions
 
 ### `apply_patch` ⭐
 Atomic multi-note ChangeSet with rollback.
@@ -154,6 +158,29 @@ Manage the learned human→artifact lexicon — the alias mapping from human phr
 **Side effect:** writes/updates notes under `<vault>/lexicon/` (the `alias` note type). See [frontmatter-spec.md](./frontmatter-spec.md) for the `alias` type's fields.
 **See:** [configuration-reference.md](./configuration-reference.md), [cli-reference.md](./cli-reference.md) for the equivalent `lexicon` CLI subcommand group.
 
+### `manage_dossier` 🆕 v1.5+
+Manage entity dossiers — per-component living notes that organize memory by entity instead of by file.
+**Args:** `{ action: "init"|"append_incident"|"set_state"|"get"|"list", entity?, aliases?: string[], purpose?, seeded_from?, incident?, state? }`
+**Behavior by action:**
+- `init` — scaffolds a dossier for `entity` with the fixed Purpose / Failure modes / Knobs & commands / Incident log / Current state sections. No-op (returns the existing entry) if a dossier already exists for that entity or one of its aliases. `aliases`/`purpose`/`seeded_from` are init-only seed values.
+- `append_incident` — appends a dated line to the Incident log (accretion, never a new note). Requires `entity` + `incident`. Refuses if no dossier exists yet for that entity.
+- `set_state` — replaces the Current state section body. Requires `entity` + `state`. Refuses if no dossier exists yet.
+- `get` — reads a dossier by entity name, alias, or path.
+- `list` — recompiles the dossier cache and lists all dossiers with entity/aliases/current state.
+**Side effect:** writes/updates notes under `<vault>/dossiers/` (the `dossier` note type); recompiles `.claude/.semantic-memory/dossier-cache.json` on every write. `init`/`append_incident`/`set_state` record touched paths to the active session.
+**See:** [dossiers-guide.md](../operational/dossiers-guide.md), [frontmatter-spec.md](./frontmatter-spec.md) for the `dossier` type's fields.
+
+### `manage_profile` 🆕 v1.5+
+Manage the speaker profile — the model of how THIS human communicates.
+**Args:** `{ action: "init"|"get"|"update_section", section?, text?, mode?: "append"|"replace" }`
+**Behavior by action:**
+- `init` — scaffolds `profile/speaker.md` with the fixed Severity calibration / Chronic omissions / Verbosity preference / Shorthand & terms sections. No-op if it already exists.
+- `get` — reads the profile, returning its placeholder-stripped injection head alongside the full content.
+- `update_section` — appends a line (`mode: "append"`, default) or replaces the whole body (`mode: "replace"`) of `section`. Requires `section` + `text`. Scaffolds the note first if absent.
+**Use when:** the user corrects an interpretation ("no, when I say X I mean Y") — route the correction here instead of `synthesize_note`.
+**Side effect:** writes `<vault>/profile/speaker.md` (singleton — one human, one profile). Records touched paths to the active session.
+**See:** [session-paging-guide.md](../operational/session-paging-guide.md), [frontmatter-spec.md](./frontmatter-spec.md) for the `profile` type's fields.
+
 ## Lint (5)
 
 ### `lint_vault` ⭐
@@ -167,8 +194,9 @@ Run lint rules across the vault. Default returns the full report.
 - **`code_symbols`** (v1.2.3+) — flags inline-code file-path references in note content that no longer exist under the project root. Catches doc drift after refactors/renames. No-op outside a code repo. See [v1-2-3-hygiene-completion.md](../changelog/v1-2-3-hygiene-completion.md).
 - **`decay_candidates`** (v1.3.1+) — cross-references the selection log (`.claude/.semantic-memory/selection.jsonl`) against each note's current decay multiplier, flagging notes retrieved frequently but decayed to ≤0.5 (e.g. "retrieved 7× recently but decayed to 0.42 — verify_note or revise"). Index-free — no embedder call. No-op when there's no selection log yet (fresh vault, or `telemetry.enabled: false`). Findings sorted most-retrieved first. See [v1-3-1-telemetry.md](../changelog/v1-3-1-telemetry.md), [configuration-reference.md](./configuration-reference.md#telemetry-vaultschemayml).
 - **`alias_conflicts`** (v1.4+) — flags a lexicon phrase that maps to more than one canonical target (ambiguous alias). Reads the same `alias`-type notes / lexicon cache that `manage_lexicon` manages. Never included in the default report — always opt-in.
+- **`decoys`** (v1.5+) — flags notes retrieved 3+ times (per the selection log) that were NEVER subsequently cited (`read_note`'d). Surfaced for human review only — usage-feedback ranking never auto-down-ranks on this ambiguous signal (a decoy might be noise, or a note the answers were wrong to skip). No-op with no selection log yet. Findings sorted most-retrieved first. See [v1-5-0-expert-character.md](../changelog/v1-5-0-expert-character.md), [usage-feedback-guide.md](../operational/usage-feedback-guide.md).
 
-Request either via `checks: ["code_symbols"]` / `checks: ["decay_candidates"]` / `checks: ["alias_conflicts"]` (or combine with the standard four — the `checks` param's enum now includes all six).
+Request either via `checks: ["code_symbols"]` / `checks: ["decay_candidates"]` / `checks: ["alias_conflicts"]` / `checks: ["decoys"]` (or combine with the standard four — the `checks` param's enum now includes all eight: `schema`, `provenance`, `stale`, `broken_links`, `code_symbols`, `decay_candidates`, `alias_conflicts`, `decoys`).
 
 ### `find_schema_violations` 🚫 deprecated
 **Migration:** `lint_vault({checks: ["schema"]})`

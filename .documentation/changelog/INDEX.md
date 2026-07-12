@@ -5,15 +5,15 @@ domains: [changelog]
 audience: [developers]
 tags: [index, changelog]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-11'
+version: '1.5.0'
 purpose: Navigation hub for changelog domain
 load_priority: 6
 ---
 
 # Changelog Index
 
-> Per-version change logs (v0.x phases through v1.2).
+> Per-version change logs (v0.x phases through v1.5).
 
 ## v1.x — semantic-memory era
 
@@ -25,6 +25,7 @@ load_priority: 6
 - **[v1.3.1 — selection-logging telemetry](./v1-3-1-telemetry.md)** — Local, append-only `selection.jsonl` recording which search result each answer used. New `decay_candidates` lint and `selection-stats` CLI. Observes only (no ranking change) — the precursor to v1.4 usage-feedback ranking. Also carries the `regenerate_contract` version-freeze fix.
 - **[v1.3.2 — fix hook double-registration](../operational/drift-detection.md#hook_double_registration-warn-v132)** — Removed the redundant `hooks` block from `.claude/settings.json` (the plugin's `hooks.json` already registers them) that fired `vault-context.js` twice per prompt; added a `hook_double_registration` healthcheck finding.
 - **[v1.4.0 — resident-expert bridge](./v1-4-0-resident-bridge.md)** — The human→LLM bridge: learned lexicon (`manage_lexicon`) + propose-and-confirm alias capture, verbatim symptom capture + symptom-keyed indexing, Tier-1 lexicon query expansion, archive path-class down-weight, injection hygiene, section-targeted `read_note`, conditional tool registration, and the golden eval harness. Tool surface 41→42.
+- **[v1.5.0 — the expert-character layer](./v1-5-0-expert-character.md)** — Entity dossiers (`manage_dossier`) with two-hop retrieval + lexicon alias fold-in, usage-feedback ranking (`usage_boost`, consumes the v1.3.1 selection log) plus the `decoys` lint, Stop/SessionStart session paging (digest-as-proposal, curated SessionStart digest), and a speaker profile (`manage_profile`) learned via correction cues. Tool surface 42→44.
 
 ## v0.x — semantic-sidekick phased build
 

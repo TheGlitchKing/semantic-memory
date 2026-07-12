@@ -5,8 +5,8 @@ domains: [operational]
 audience: [developers]
 tags: [index, operational]
 status: active
-last_updated: '2026-05-09'
-version: '1.2.0'
+last_updated: '2026-07-11'
+version: '1.5.0'
 purpose: Navigation hub for operational domain
 load_priority: 6
 ---
@@ -34,6 +34,12 @@ load_priority: 6
 ### v1.2+ additions
 
 - **[State Migration](./state-migration.md)** — `bin/semantic-memory migrate-state` for moving legacy `.claude/.sidekick-*` files under `.claude/.semantic-memory/`. Read-with-fallback semantics, conflict resolution.
+
+### v1.5+ additions — the expert-character layer
+
+- **[Entity Dossiers Guide](./dossiers-guide.md)** — Operating v1.5 entity dossiers: creating them (CLI + `manage_dossier`), the accretion model (Incident log append, Current state replace), two-hop retrieval, aliases feeding the lexicon, seeding from babel-fish.
+- **[Usage-Feedback Ranking & Decoys Guide](./usage-feedback-guide.md)** — Operating v1.5 usage-feedback ranking: how citations become a bounded rank boost, composition with decay/path-class, reading the `usage` block, running the `decoys` lint, disabling.
+- **[Session Paging & Speaker Profile Guide](./session-paging-guide.md)** — Operating v1.5 session paging (Stop digest-as-proposal, SessionStart curated digest) and the speaker profile (init, sections, correction-cue updates, injection).
 
 ## See also
 

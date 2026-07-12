@@ -5,9 +5,9 @@ domains: [reference]
 audience: [developers, admin]
 tags: [frontmatter, schema, yaml, fields, spec, provenance]
 status: active
-last_updated: '2026-07-10'
-version: '1.4.0'
-purpose: Authoritative field-by-field spec for note frontmatter. Covers every field the indexer / lint / search tools read, what types they expect, what defaults apply, and which tools surface them. Includes the v1.4.0 symptoms field and the new alias note type (canonical, phrases, evidence_count, source).
+last_updated: '2026-07-11'
+version: '1.5.0'
+purpose: Authoritative field-by-field spec for note frontmatter. Covers every field the indexer / lint / search tools read, what types they expect, what defaults apply, and which tools surface them. Includes the v1.4.0 symptoms field and alias note type, plus the v1.5.0 entity/aliases fields and the dossier + profile note types.
 load_priority: 9
 ---
 
@@ -50,6 +50,18 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Used by:** Documentation organization (HEWTD-flavored docs use this); not currently used by search filters
 - **Schema rule:** None
 - **Example:** `audience: [developers, admin]`
+
+### `aliases` (v1.5+, `type: dossier` only)
+- **Type:** `string[]`
+- **Required:** No (recommended — this is how a dossier gets found by two-hop retrieval)
+- **Used by:** `resolveDossierForPrompt`/`resolveDossierForQuery` (longest normalized match against the dossier cache) and the lexicon compiler — a dossier's aliases fold into `.claude/.semantic-memory/lexicon-cache.json` as authored entries pointing at the dossier's path, so Tier-1 query expansion (v1.4) also routes through them.
+- **Note:** Distinct from the `alias` note *type* (v1.4) and its `phrases` field. `aliases` is a field on `type: dossier` notes; `phrases` is a field on `type: alias` notes. Both feed query expansion, but from different note shapes.
+- **Example:**
+  ```yaml
+  aliases:
+    - "the gateway"
+    - "stripe proxy"
+  ```
 
 ### `canonical` (v1.4+, `type: alias` only)
 - **Type:** `string`
@@ -100,6 +112,12 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
   - HEWTD doc organization
 - **Convention:** Use lowercase, dash-separated. Examples: `architecture`, `api`, `security`, `frontend`.
 - **Example:** `domains: [architecture, api]`
+
+### `entity` (v1.5+, `type: dossier` only)
+- **Type:** `string`
+- **Required:** Yes, for `type: dossier` — the canonical entity/component name the dossier tracks.
+- **Used by:** `manage_dossier` (all actions resolve by exact `entity` match or via `aliases`), the dossier cache (`dossier-cache.json`), two-hop retrieval in the hook, and the CLI `dossier init`/`dossier list`.
+- **Example:** `entity: payment-gateway`
 
 ### `evergreen` (v1.3+)
 - **Type:** `boolean`
@@ -289,14 +307,16 @@ Frontmatter sits between two `---` lines at the very top of the file. Anything a
 - **Convention:** Match the body's `# H1` line.
 
 ### `type`
-- **Type:** `string` — typically `note`, `decision`, `gotcha`, `source`, `alias` (v1.4+; default schema)
+- **Type:** `string` — typically `note`, `decision`, `gotcha`, `source`, `alias` (v1.4+), `dossier` (v1.5+), `profile` (v1.5+) (default schema)
 - **Required:** Yes (in default schema)
 - **Used by:**
   - Schema: each type can have type-specific required fields and rules
-  - Lint: `missing_provenance` only fires for `note`/`decision`/`gotcha`, NOT `source`/`alias`
+  - Lint: `missing_provenance` only fires for `note`/`decision`/`gotcha`, NOT `source`/`alias`/`dossier`/`profile`
   - **v1.3 confidence-decay** uses type to look up per-type half-life (decision: 365d, gotcha: 180d, etc.)
   - `synthesize_note` accepts this as input
   - `type: alias` notes are managed by `manage_lexicon` rather than `synthesize_note` — see [The `alias` note type](#the-alias-note-type-v14) below
+  - `type: dossier` notes are managed by `manage_dossier` — see [The `dossier` note type](#the-dossier-note-type-v15) below
+  - `type: profile` notes are managed by `manage_profile` — see [The `profile` note type](#the-profile-note-type-v15) below
 - **Schema rule:** `types` map in `vault.schema.yml` declares valid types and their per-type rules
 - **Example:** `type: decision`
 
@@ -332,15 +352,69 @@ source: learned
 ---
 ```
 
+## The `dossier` note type (v1.5+)
+
+`dossier` notes are entity-centric living notes — one per critical component — that back `manage_dossier` and the `semantic-memory dossier` CLI subcommands. They live under `<vault>/dossiers/`.
+
+- **`type`:** `dossier`
+- **Required field:** `entity` — the canonical component name.
+- **Optional fields:** `aliases` (string[]).
+- **Fixed body sections (in order):** Purpose / Failure modes / Knobs & commands / Incident log / Current state. `dossier init` scaffolds all five as placeholders; content accretes in place (`manage_dossier` actions `append_incident`/`set_state`) rather than spawning new notes per event.
+- **Written by:** `manage_dossier({action: "init"|"append_incident"|"set_state"})` (see [mcp-tools-reference.md](./mcp-tools-reference.md)) and `semantic-memory dossier init` (see [cli-reference.md](./cli-reference.md)).
+- **Compiled to:** `.claude/.semantic-memory/dossier-cache.json` on every write — read by the `UserPromptSubmit` hook for two-hop retrieval (an utterance naming the entity or an alias gets the dossier's Purpose + Current state injected ahead of semantic search hits).
+- **Feeds:** the lexicon compiler — a dossier's `aliases` fold in as authored lexicon entries pointing at the dossier path, so Tier-1 query expansion (v1.4) also routes through dossier aliases.
+
+Example:
+
+```yaml
+---
+title: payment-gateway
+type: dossier
+entity: payment-gateway
+aliases:
+  - "the gateway"
+  - "stripe proxy"
+status: active
+last_verified: 2026-07-11
+confidence: medium
+---
+```
+
+## The `profile` note type (v1.5+)
+
+`profile` notes model how THIS human communicates — severity calibration, chronic omissions, verbosity preference, non-entity shorthand. Unlike other types, this is a **singleton**: exactly one instance, always at `<vault>/profile/speaker.md`.
+
+- **`type`:** `profile`
+- **Required fields:** none beyond the standard `title`/`status` (default schema requires `title`, `status`).
+- **Fixed body sections (in order):** Severity calibration / Chronic omissions / Verbosity preference / Shorthand & terms.
+- **`evergreen: true`** by default at creation — the profile is meant to be a durable, continuously-corrected model, not something that decays like a point-in-time note.
+- **Written by:** `manage_profile({action: "init"|"update_section"})` (see [mcp-tools-reference.md](./mcp-tools-reference.md)) and `semantic-memory profile init` (see [cli-reference.md](./cli-reference.md)). `update_section` is typically triggered by a speaker-correction capture cue ("when I say X I mean Y"), not called directly by the user.
+- **Injected:** at `SessionStart`, a capped, placeholder-stripped head — silent (no injection) when every section is still an unfilled placeholder.
+
+Example:
+
+```yaml
+---
+title: Speaker profile
+type: profile
+status: active
+last_verified: 2026-07-11
+confidence: medium
+evergreen: true
+---
+```
+
 ## Schema enforcement
 
 The default schema (installed via `install_schema`) enforces:
 
-- `type` must be one of: `note`, `decision`, `gotcha`, `source`
+- `type` must be one of: `note`, `decision`, `gotcha`, `source`, `alias`, `dossier`, `profile`
 - `status` must be one of: `active`, `draft`, `deprecated`, `archived`, `proposal`
 - `last_verified` must parse as ISO date when present
 - For `type` ∈ `{note, decision, gotcha}`: at least one of `sources` or `derived_from` must be non-empty (warning, not error)
 - For `type: decision`: `decision_maker` is recommended (warning if absent)
+- For `type: alias`: `canonical` is required
+- For `type: dossier`: `entity` is required
 - `stale.max_age_days` defaults to 180 — `last_verified` older than this triggers `find_stale`
 
 Customize `<vault>/vault.schema.yml` to add types, fields, or stricter rules. The lint suite re-runs against the live schema.
