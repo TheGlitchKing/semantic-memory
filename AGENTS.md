@@ -1,7 +1,7 @@
 ---
 generated_by: semantic-memory
-version: 1.3.0
-last_generated: 2026-07-10T23:27:23.969Z
+version: 1.5.0
+last_generated: 2026-07-12T00:20:36.771Z
 ---
 
 # Project Agent Contract
@@ -40,6 +40,9 @@ last_generated: 2026-07-10T23:27:23.969Z
 - `ingest_source` — Build + apply a ChangeSet that ingests a source and the notes extracted from it.
 - `install_schema` — Bootstrap vault.schema.yml in the vault root with the default schema.
 - `verify_note` — Stamp last_verified to today (content unchanged) to reset the confidence-decay clock; logs a verify event.
+- `manage_lexicon` — Manage the learned human→artifact lexicon (add/lookup/list/remove/compile aliases).
+- `manage_dossier` — Manage entity dossiers — per-component living notes (init/append_incident/set_state/get/list). Knowledge accretes in place.
+- `manage_profile` — Manage the speaker profile — how this human communicates (init/get/update_section).
 - `lint_vault` — Run lint rules across the vault. Pass `checks` to filter to specific rules.
 - `log_event` — Append a structured event to the vault's log.md.
 - `log_query` — Read structured log entries filtered by kind and/or date range.
