@@ -165,6 +165,7 @@ exports[`Regression: MCP tool outputs (golden snapshots) > lint_vault > returns 
     "broken_links",
     "code_symbols",
     "decay_candidates",
+    "decoys",
     "missing_provenance",
     "schema_violations",
     "stale",

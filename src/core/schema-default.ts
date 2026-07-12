@@ -98,6 +98,17 @@ path_class:
     - glob: "archive/**"
       multiplier: 0.3
 
+# Usage-feedback ranking (v1.5). Boosts notes that get CITED after retrieval (per
+# the local selection log) so load-bearing knowledge floats up. Bounded by cap to
+# stop a feedback runaway; composes multiplicatively with decay + path_class +
+# load_priority. A no-op until the selection log has citations. The complementary
+# signal (retrieved-but-never-cited "decoys") is surfaced by lint_vault, NEVER
+# auto-down-ranked. Set enabled: false for byte-identical pre-v1.5 ranking.
+usage_boost:
+  enabled: true
+  cap: 1.5            # max multiplier a note can earn from citations
+  per_citation: 0.1   # multiplier += per_citation × citation_count, then capped
+
 # Token-frugal tool surface (v1.4). When enabled, the server registers a reduced
 # tool set in modes that don't need the full surface (outage-silence → search/read
 # only). DEFAULT OFF — mid-session mode switches don't re-register, so opt in and

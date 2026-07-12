@@ -11,6 +11,7 @@ import { FrontmatterManager, TagManager } from "../core/frontmatter.js";
 import { SessionManager, deriveSessionDir } from "../core/session.js";
 import { computeDecay, loadDecayConfig, normalizeVerifiedDate, type DecayConfig } from "../core/decay.js";
 import { pathClassMultiplier, loadPathClassConfig, type PathClassConfig } from "../core/path-class.js";
+import { computeUsageBoost, loadUsageBoostConfig, loadCitationCounts, type UsageBoostConfig } from "../core/usage-boost.js";
 import type { IndexedDocument, IndexState } from "../core/types.js";
 
 export interface ServerOptions {
@@ -31,6 +32,11 @@ export interface DecayBlock {
   reason: string;
 }
 
+export interface UsageBlock {
+  citations: number;
+  multiplier: number;
+}
+
 export interface EnrichedResult {
   mtime?: string;
   loadPriority?: number;
@@ -38,6 +44,7 @@ export interface EnrichedResult {
   tier?: string;
   domains?: string[];
   decay?: DecayBlock;
+  usage?: UsageBlock;
 }
 
 export interface ServerContext {
@@ -83,6 +90,16 @@ export interface ServerContext {
    * No-op when disabled or no glob matches.
    */
   applyPathClass<T extends { path: string; score: number }>(r: T): T;
+  /**
+   * Apply the usage-feedback boost (v1.5): notes cited repeatedly (per the
+   * selection log) earn a bounded rank boost (≤ cap), attaching a `usage` block
+   * when boosted. Composes multiplicatively at the same rank site as decay/
+   * path-class/priority. No-op when disabled or the note has no citations. Call
+   * `refreshUsageBoost()` once before a batch so the citation snapshot is current.
+   */
+  applyUsageBoost<T extends { path: string; score: number }>(r: T): T & { usage?: UsageBlock };
+  /** Refresh the cached citation snapshot from the selection log (TTL-guarded). */
+  refreshUsageBoost(): Promise<void>;
   applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -338,6 +355,39 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     return m === 1 ? r : { ...r, score: r.score * m };
   }
 
+  // Usage-feedback boost (v1.5). Config is process-cached; the citation snapshot
+  // is refreshed from the selection log on a short TTL so within-session citations
+  // eventually take effect without re-reading the log on every scored result.
+  let usageBoostConfig: UsageBoostConfig | null = null;
+  function getUsageBoostConfig(): UsageBoostConfig {
+    if (!usageBoostConfig) usageBoostConfig = loadUsageBoostConfig(notesPath);
+    return usageBoostConfig;
+  }
+  let citationCounts: Record<string, number> = {};
+  let citationLoadedAtMs = 0;
+  const CITATION_TTL_MS = 15_000;
+
+  async function refreshUsageBoost(): Promise<void> {
+    if (!getUsageBoostConfig().enabled) return;
+    const now = Date.now();
+    if (now - citationLoadedAtMs < CITATION_TTL_MS && citationLoadedAtMs > 0) return;
+    try {
+      citationCounts = await loadCitationCounts(notesPath);
+      citationLoadedAtMs = now;
+    } catch {
+      /* keep the previous snapshot on error */
+    }
+  }
+
+  function applyUsageBoost<T extends { path: string; score: number }>(r: T): T & { usage?: UsageBlock } {
+    const cfg = getUsageBoostConfig();
+    if (!cfg.enabled) return r;
+    const citations = citationCounts[r.path] ?? 0;
+    const m = computeUsageBoost(citations, cfg);
+    if (m === 1) return r;
+    return { ...r, score: r.score * m, usage: { citations, multiplier: Math.round(m * 1000) / 1000 } };
+  }
+
   function applyDateFilter<T extends { path: string }>(
     results: T[],
     modifiedAfter?: string,
@@ -381,6 +431,8 @@ export async function buildContext(notesPath: string, options: ServerOptions = {
     applyPriorityBoost,
     applyDecay,
     applyPathClass,
+    applyUsageBoost,
+    refreshUsageBoost,
     applyDateFilter,
   };
 }
