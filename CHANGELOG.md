@@ -2,6 +2,28 @@
 
 All notable changes to semantic-memory (formerly semantic-sidekick) will be documented here.
 
+## [1.5.0] - 2026-07-11 — Expert-character layer (v1.5.0: Phases 8–11)
+
+Where v1.4.0 taught the plugin *how this human talks about the system*, v1.5.0 gives it the other two traits of a resident expert: it organizes memory by **component** (not by file) and **learns from its own usage**. Tool surface 42 → 44 (`manage_dossier`, `manage_profile`; read-only unchanged at 21). Additive throughout; `usage_boost.enabled: false` reproduces byte-identical pre-v1.5 ranking.
+
+### Added
+
+- **Entity dossiers** (`src/core/dossier.ts`, **`manage_dossier`**). Per-component living notes at `<vault>/dossiers/<slug>.md` (`dossier` note type) with fixed sections — Purpose / Failure modes / Knobs & commands / Incident log / Current state. Knowledge accretes **in place** (incidents append, current-state is revised; never a new note per event). `manage_dossier` actions: `init | append_incident | set_state | get | list`. CLI: `semantic-memory dossier init <entity> [--alias …] [--seeded-from …]` / `dossier list`. Dossier `aliases:` fold into the lexicon compiler so Tier-1 expansion routes to them.
+- **Two-hop retrieval** (`resolveDossierForPrompt` + `formatDossierHead` in `vault-context.js`). When an utterance names a tracked entity/alias, the dossier head (Purpose + Current state + a read-the-Incident-log pointer) is injected **first**, ahead of semantic hits — utterance → entity → dossier. Finally makes the graph load-bearing at query time.
+- **Usage-feedback ranking** (`src/core/usage-boost.ts`, `applyUsageBoost`). Consumes the v1.3.1 selection log: repeatedly-cited notes earn a bounded boost `min(cap, 1 + citations·per_citation)` (default `cap: 1.5`, `per_citation: 0.1`, `usage_boost` block in `vault.schema.yml`), composed **multiplicatively** with decay + path-class + `load_priority` at the shared `context.ts` rank site. TTL-cached (15s) citation snapshot; boosted results carry a `usage: {citations, multiplier}` block. The cap stops a feedback runaway.
+- **Decoys lint** (`findDecoys`, `lint_vault({checks:["decoys"]})`). Notes retrieved 3+ times but never cited are **surfaced for review, never auto-down-ranked** — down-rank on evidence, never on ambiguous inference (decision Q5).
+- **Session paging.** Stop: the session-close prompt drafts a durable digest (decisions / resolutions / task-state) via `synthesize_note` as a reviewable **proposal** (`proposal_subdir: "sessions"`), graduated by `synthesize_promote` (decision Q10). SessionStart: `buildSessionStartDigest` pages in a curated block (active task + last session digest + dossier current-states + mode) instead of a broad whole-vault sweep when there's durable state; falls back otherwise.
+- **Speaker profile** (`src/core/profile.ts`, **`manage_profile`**). `profile` note type at `<vault>/profile/speaker.md` (evergreen), fixed sections — Severity calibration / Chronic omissions / Verbosity preference / Shorthand & terms. Injected at SessionStart (`<vault-speaker-profile>`, capped, silent until filled). `manage_profile` actions: `init | get | update_section`. CLI: `profile init|show`. Updated via a correction cue ("when I say X I mean Y") folded into the existing capture-cue machinery, routed to `manage_profile` rather than `synthesize_note`. One human, one profile.
+
+### Decisions (locked at kickoff, 2026-07-11)
+
+Q5 — decoys stay lint-only. Q9 — conditional tool registration stays default OFF (`tools/list_changed` reliability unverified). Q10 — session digest is an automatic draft filed as a proposal. Q11 — learned aliases stay propose-and-confirm regardless of `evidence_count`.
+
+### Tests
+
+- New: `dossier`, `two-hop-dossier`, `usage-boost`, `lint-decoys`, `profile` unit suites; `dossier-mcp`, `usage-boost-ranking`, `profile-mcp` integration; `phase10/session-paging`, `phase11/speaker-profile` hook suites. Regression shape snapshots made citation-independent.
+- Tool counts 42 → 44 (read-only unchanged at 21). Golden eval: zero regression (recall@1=86% recall@3/@5=100% MRR=0.929). **418 tests green; fresh-install smoke PASS.**
+
 ## [1.4.0] - 2026-07-10 — Resident-expert bridge (v1.4.0: Phases 1–7)
 
 The human→LLM bridge arc: learn how *this human* talks about the system, map that phrasing to concrete artifacts, and pay down the plugin's own token overhead. Tool surface 41 → 42 (`manage_lexicon`). Additive throughout; default ranking behavior is unchanged except for the new archive down-weight (opt-out).
